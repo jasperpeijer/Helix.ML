@@ -120,8 +120,40 @@ public readonly struct Matrix
     /// <summary>
     /// Supports the commutative property (e.g., 5.0 * matrix instead of matrix * 5.0).
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Matrix operator *(double scalar, Matrix m) => m * scalar;
 
+    /// <summary>
+    /// Adds a scalar value to every element in the matrix using SIMD.
+    /// </summary>
+    public static Matrix operator +(Matrix m, double scalar)
+    {
+        var result = new double[m.Data.Length];
+        var vectorSize = Vector<double>.Count;
+        var vScalar = new Vector<double>(scalar);
+        int i = 0;
+
+        for (; i <= m.Data.Length - vectorSize; i += vectorSize)
+        {
+            var vA = new Vector<double>(m.Data, i);
+            var vRes = vA + vScalar;
+            vRes.CopyTo(result, i);
+        }
+
+        for (; i < m.Data.Length; i++)
+        {
+            result[i] = m.Data[i] + scalar;
+        }
+        
+        return new Matrix(m.Shape, result);
+    }
+    
+    /// <summary>
+    /// Supports the commutative property (e.g., 5.0 + matrix).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Matrix operator +(double scalar, Matrix m) => m + scalar;
+    
     /// <summary>
     /// Adds two matrices together using SIMD
     /// </summary>
@@ -219,7 +251,13 @@ public readonly struct Matrix
     /// <summary>
     /// Unary negation: Flips the sign of every element in the matrix (-A).
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Matrix operator -(Matrix m) => m * (-1);
+
+    /// <summary>
+    /// Subtracts a scalar value from every element in the matrix using SIMD.
+    /// </summary>
+    public static Matrix operator -(Matrix m, double scalar) => m + (-scalar);
     
     /// <summary>
     /// Subtracts matrix b from matrix a element-wise using SIMD.
@@ -347,6 +385,7 @@ public readonly struct Matrix
     /// <summary>
     /// Syntactic sugar for Augmenting two matrices [A | B].
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Matrix operator |(Matrix left, Matrix right) => left.Augment(right);
 
     /// <summary>
@@ -371,6 +410,7 @@ public readonly struct Matrix
     /// <summary>
     /// Syntactic sugar for Concatenating two matrices vertically.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Matrix operator &(Matrix top, Matrix bottom) => top.Concatenate(bottom);
     
     #endregion
@@ -426,6 +466,22 @@ public readonly struct Matrix
     /// Creates a square N x N Identity matrix.
     /// </summary>
     public static Matrix Identity(int size) => Identity(size, size);
+
+    /// <summary>
+    /// Creates a matrix of the specified dimensions filled entirely with ones.
+    /// </summary>
+    public static Matrix Ones(int rows, int cols)
+    {
+        var matrix = new Matrix(rows, cols);
+        Array.Fill(matrix.Data, 1.0);
+
+        return matrix;
+    }
+    
+    /// <summary>
+    /// Creates a matrix of the specified shape filled entirely with ones.
+    /// </summary>
+    public static Matrix Ones((int rows, int cols) shape) => Ones(shape.rows, shape.cols);
 
     /// <summary>
     /// Creates a matrix filled with uniformly distributed random doubles between min and max.
@@ -540,6 +596,212 @@ public readonly struct Matrix
 
         return sum;
     }
+
+    /// <summary>
+    /// Creates a smaller matrix by completely removing the specified row and column.
+    /// Used primarily for calculating Determinants and Cofactors.
+    /// </summary>
+    private Matrix GetMinor(int dropRow, int dropCol)
+    {
+        var result = new Matrix(Rows - 1, Cols - 1);
+        int targetRow = 0;
+
+        for (var i = 0; i < Rows; i++)
+        {
+            if (i == dropRow) continue;
+
+            if (dropCol > 0)
+            {
+                Array.Copy(this.Data, i * Cols, result.Data, 
+                    targetRow * result.Cols, dropCol);
+            }
+
+            if (dropCol < Cols - 1)
+            {
+                int elementsAfter = Cols - dropCol - 1;
+                Array.Copy(this.Data, (i * Cols) + dropCol + 1, result.Data,
+                    (targetRow * result.Cols) + dropCol, elementsAfter);
+                
+            }
+            
+            targetRow++;
+        }
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Calculates the Determinant of a square matrix using Laplace Expansion,
+    /// with an O(N) fast-path for triangular matrices.
+    /// Warning: This runs in O(N!) time. Do not use on massive matrices.
+    /// </summary>
+    public double Determinant()
+    {
+        if (Rows != Cols)
+        {
+            throw new InvalidOperationException("The Determinant is strictly defined for square matrices.");
+        }
+        
+        // --- THE O(N) FAST PATH ---
+        // If the matrix is triangular or diagonal, the determinant is just the product of the main diagonal!
+        if (IsUpperTriangular() || IsLowerTriangular())
+        {
+            double det = 1.0;
+
+            for (int i = 0; i < Rows; i++)
+            {
+                det *= this[i, i];
+            }
+
+            return det;
+        }
+
+        if (Rows % 2 != 0 && IsAntiSymmetric())
+        {
+            return 0.0;
+        }
+        
+        if (Rows == 1) return Data[0];
+        
+        if (Rows == 2) return (Data[0] * Data[3]) - (Data[1] * Data[2]);
+
+        double determinant = 0.0;
+        int sign = 1;
+
+        for (int j = 0; j < Cols; j++)
+        {
+            double element = this[0, j];
+            
+            // HUGE OPTIMIZATION: If the element is 0.0, anything multiplied by it is 0.
+            // We can skip the entire recursive calculation for this branch!
+            if (element != 0.0)
+            {
+                var minor = GetMinor(0, j);
+                determinant += sign * element * minor.Determinant();
+            }
+            
+            // Alternate signs (+, -, +, -)
+            sign *= -1;
+        }
+
+        return determinant;
+    }
+
+    /// <summary>
+    /// Checks if the matrix is Upper Triangular (all elements below the main diagonal are zero).
+    /// </summary>
+    public bool IsUpperTriangular(double tolerance = 1e-14)
+    {
+        if (Rows != Cols) return false;
+
+        for (var i = 1; i < Rows; i++)
+        {
+            for (var j = 0; j < i; j++)
+            {
+                if (Math.Abs(this[i, j]) > tolerance) return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Checks if the matrix is Lower Triangular (all elements above the main diagonal are zero).
+    /// </summary>
+    public bool IsLowerTriangular(double tolerance = 1e-14)
+    {
+        if (Rows != Cols) return false;
+
+        for (var i = 0; i < Rows - 1; i++)
+        {
+            for (var j = i + 1; j < Cols; j++)
+            {
+                if (Math.Abs(this[i, j]) > tolerance) return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Checks if the matrix is strictly Diagonal (all non-diagonal elements are zero).
+    /// </summary>
+    public bool IsDiagonal(double tolerance = 1e-14) => IsUpperTriangular(tolerance) && IsLowerTriangular(tolerance);
+    
+    /// <summary>
+    /// Checks if the matrix is perfectly square (Rows == Cols).
+    /// </summary>
+    public bool IsSquare 
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Rows == Cols;
+    }
+
+    /// <summary>
+    /// Checks if the matrix is Symmetric (A = A^T).
+    /// Uses an optimized loop to avoid memory allocation and allow early exits.
+    /// </summary>
+    public bool IsSymmetric(double tolerance = 1e-14)
+    {
+        if (!IsSquare) return false;
+
+        for (var i = 0; i < Rows; i++)
+        {
+            for (var j = 0; j < Cols; j++)
+            {
+                if (Math.Abs(this[i, j] - this[j, i]) > tolerance) return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Checks if the matrix is Antisymmetric / Skew-Symmetric (A^T = -A).
+    /// </summary>
+    public bool IsAntiSymmetric(double tolerance = 1e-14)
+    {
+        if (!IsSquare) return false;
+
+        for (var i = 0; i < Rows; i++)
+        {
+            for (var j = 0; j < Cols; j++)
+            {
+                if (Math.Abs(this[i, j] + this[j, i]) > tolerance) return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Checks if a matrix is orthogonal 
+    /// </summary>
+    public bool IsOrthogonal(double tolerance = 1e-14)
+    {
+        if (!IsSquare) return false;
+
+        var identity = Matrix.Identity(Rows);
+        var product = this * this.Transpose();
+
+        return product.IsCloseTo(identity, atol: tolerance);
+    }
+
+    /// <summary>
+    /// Extracts the elements on the main diagonal into a flat 1D array.
+    /// </summary>
+    public double[] GetDiagonal()
+    {
+        int minDim = Math.Min(Rows, Cols);
+        double[] diag = new double[minDim];
+
+        for (int i = 0; i < minDim; i++)
+        {
+            diag[i] = this[i, i];
+        }
+
+        return diag;
+    }
     
     #endregion
     
@@ -615,15 +877,7 @@ public readonly struct Matrix
     
     public static bool operator !=(Matrix left, Matrix right) => !(left == right);
 
-    public override bool Equals(object? obj)
-    {
-        if (obj is Matrix other)
-        {
-            return this == other;
-        }
-
-        return false;
-    }
+    public override bool Equals(object? obj) => obj is Matrix other && this == other;
 
     public override int GetHashCode()
     {

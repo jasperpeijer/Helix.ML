@@ -693,4 +693,314 @@ public class MatrixTests
         Assert.Equal(0, result[1, 0]);
         Assert.Equal(-3, result[1, 1]);
     }
+    
+    [Fact]
+    public void OperatorAdd_SameShape_AddsElementWise()
+    {
+        var a = new Matrix(new double[,] { { 1.0, 2.0 }, { 3.0, 4.0 } });
+        var b = new Matrix(new double[,] { { 5.0, 6.0 }, { 7.0, 8.0 } });
+
+        var result = a + b;
+
+        Assert.Equal(6.0, result[0, 0]);
+        Assert.Equal(8.0, result[0, 1]);
+        Assert.Equal(10.0, result[1, 0]);
+        Assert.Equal(12.0, result[1, 1]);
+    }
+    
+    [Fact]
+    public void OperatorDivide_ByScalar_DividesAllElements()
+    {
+        var m = new Matrix(new double[,] { { 10.0, 20.0 }, { -5.0, 0.0 } });
+
+        var result = m / 2.0;
+
+        Assert.Equal(5.0, result[0, 0]);
+        Assert.Equal(10.0, result[0, 1]);
+        Assert.Equal(-2.5, result[1, 0]);
+        Assert.Equal(0.0, result[1, 1]);
+    }
+    
+    [Fact]
+    public void Exceptions_VariousShapeMismatches_ThrowArgumentExceptions()
+    {
+        var m2x2 = Matrix.Zeros(2, 2);
+        var m2x3 = Matrix.Zeros(2, 3);
+        var m3x3 = Matrix.Zeros(3, 3);
+        var m3x2 = Matrix.Zeros(3, 2);
+
+        // Addition & Subtraction Mismatches
+        Assert.Throws<ArgumentException>(() => m2x2 + m3x3);
+        
+        // Augment (Horizontal Stack) Mismatches - Requires same row count
+        Assert.Throws<ArgumentException>(() => m2x2.Augment(m3x3));
+        
+        // Concatenate (Vertical Stack) Mismatches - Requires same column count
+        Assert.Throws<ArgumentException>(() => m2x3.Concatenate(m3x2));
+        
+        // Range Setter Mismatches - Trying to put a 3x3 into a 2x2 slice
+        Assert.Throws<ArgumentException>(() => m2x2[0..2, 0..2] = m3x3);
+        
+        // IsCloseTo Mismatches
+        Assert.Throws<ArgumentException>(() => m2x2.IsCloseTo(m3x3));
+    }
+    
+    [Fact]
+    public void Constructor_1DArray_InjectsCorrectly()
+    {
+        double[] data = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        
+        // 2 rows, 3 cols requires exactly 6 elements
+        var m = new Matrix(2, 3, data); 
+        
+        Assert.Equal(3.0, m[0, 2]);
+        Assert.Equal(6.0, m[1, 2]);
+    }
+    
+    [Fact]
+    public void Ones_ValidDimensions_CreatesMatrixOfAllOnes()
+    {
+        // Arrange & Act
+        var m = Matrix.Ones(2, 3);
+
+        // Assert
+        Assert.Equal((2, 3), m.Shape);
+        
+        foreach (double val in m.Data)
+        {
+            Assert.Equal(1.0, val);
+        }
+    }
+    
+    [Fact]
+    public void OperatorAdd_ByScalar_AddsToAllElements()
+    {
+        // Arrange
+        var m = new Matrix(new double[,] { { 1.0, -2.0 }, { 0.0, 4.0 } });
+
+        // Act
+        var result1 = m + 5.0;
+        var result2 = 5.0 + m; // Proves the commutative overload works
+
+        // Assert
+        Assert.Equal(6.0, result1[0, 0]);
+        Assert.Equal(3.0, result1[0, 1]);
+        Assert.Equal(5.0, result1[1, 0]);
+        Assert.Equal(9.0, result1[1, 1]);
+        
+        // Ensure result2 matches result1
+        Assert.True(result1 == result2);
+    }
+    
+    [Fact]
+    public void OperatorSubtract_ByScalar_SubtractsFromAllElements()
+    {
+        // Arrange
+        var m = new Matrix(new double[,] { { 1.0, -2.0 }, { 0.0, 4.0 } });
+
+        // Act
+        var result = m - 5.0;
+
+        // Assert
+        Assert.Equal(-4.0, result[0, 0]);
+        Assert.Equal(-7.0, result[0, 1]);
+        Assert.Equal(-5.0, result[1, 0]);
+        Assert.Equal(-1.0, result[1, 1]);
+        
+        // Ensure result2 matches result1
+    }
+    
+    [Fact]
+    public void Determinant_2x2Matrix_CalculatesCorrectly()
+    {
+        // Arrange
+        var m = new Matrix(new double[,] {
+            { 3, 8 },
+            { 4, 6 }
+        });
+
+        // Act
+        double det = m.Determinant();
+
+        // Assert
+        // (3 * 6) - (8 * 4) = 18 - 32 = -14
+        Assert.Equal(-14.0, det);
+    }
+    
+    [Fact]
+    public void Determinant_3x3Matrix_CalculatesCorrectly()
+    {
+        // Arrange
+        var m = new Matrix(new double[,] {
+            { 6, 1, 1 },
+            { 4, -2, 5 },
+            { 2, 8, 7 }
+        });
+
+        // Act
+        double det = m.Determinant();
+
+        // Assert
+        // A standard 3x3 test case: det should be -306
+        Assert.Equal(-306.0, det);
+    }
+    
+    [Fact]
+    public void Determinant_NonSquareMatrix_ThrowsInvalidOperationException()
+    {
+        var m = Matrix.Zeros(2, 3);
+        Assert.Throws<InvalidOperationException>(() => m.Determinant());
+    }
+    
+    [Fact]
+    public void IsTriangular_UpperAndLower_EvaluatesCorrectly()
+    {
+        var upper = new Matrix(new double[,] {
+            { 1, 2, 3 },
+            { 0, 4, 5 },
+            { 0, 0, 6 }
+        });
+
+        var lower = new Matrix(new double[,] {
+            { 1, 0, 0 },
+            { 2, 4, 0 },
+            { 3, 5, 6 }
+        });
+
+        Assert.True(upper.IsUpperTriangular());
+        Assert.False(upper.IsLowerTriangular());
+
+        Assert.True(lower.IsLowerTriangular());
+        Assert.False(lower.IsUpperTriangular());
+
+        // Prove IsDiagonal works
+        var diag = Matrix.Identity(3);
+        Assert.True(diag.IsDiagonal());
+    }
+    
+    [Fact]
+    public void Determinant_TriangularMatrix_UsesDiagonalFastPath()
+    {
+        // Arrange
+        var upper = new Matrix(new double[,] {
+            { 2, 8, 9, 4 },
+            { 0, 3, 7, 5 },
+            { 0, 0, 4, 2 },
+            { 0, 0, 0, 5 }
+        });
+
+        // Act
+        double det = upper.Determinant();
+
+        // Assert
+        // The determinant must be 2 * 3 * 4 * 5 = 120
+        Assert.Equal(120.0, det);
+    }
+    
+    [Fact]
+    public void IsSquare_EvaluatesCorrectly()
+    {
+        var square = Matrix.Zeros(3, 3);
+        var rectangular = Matrix.Zeros(2, 3);
+
+        Assert.True(square.IsSquare);
+        Assert.False(rectangular.IsSquare);
+    }
+    
+    [Fact]
+    public void IsSymmetric_EvaluatesCorrectly()
+    {
+        // A perfectly symmetric matrix (mirrored across the main diagonal)
+        var symmetric = new Matrix(new double[,] {
+            { 1, 7, 3 },
+            { 7, 4, -5 },
+            { 3, -5, 6 }
+        });
+
+        // A slightly altered matrix that breaks symmetry
+        var nonSymmetric = new Matrix(new double[,] {
+            { 1, 7, 3 },
+            { 8, 4, -5 }, // 8 does not match 7
+            { 3, -5, 6 }
+        });
+
+        Assert.True(symmetric.IsSymmetric());
+        Assert.False(nonSymmetric.IsSymmetric());
+    }
+    
+    [Fact]
+    public void IsOrthogonal_EvaluatesCorrectly()
+    {
+        // The Identity matrix is perfectly orthogonal
+        var identity = Matrix.Identity(3);
+        
+        // A 90-degree 2D rotation matrix is also orthogonal
+        var rotation = new Matrix(new double[,] {
+            { 0, -1 },
+            { 1,  0 }
+        });
+
+        var standard = new Matrix(new double[,] {
+            { 1, 2 },
+            { 3, 4 }
+        });
+
+        Assert.True(identity.IsOrthogonal());
+        Assert.True(rotation.IsOrthogonal());
+        Assert.False(standard.IsOrthogonal());
+    }
+    
+    [Fact]
+    public void IsAntiSymmetric_EvaluatesCorrectly()
+    {
+        // A standard 3x3 skew-symmetric matrix. 
+        // Notice the diagonal is all 0s, and the mirrored elements have opposite signs.
+        var antiSymmetric = new Matrix(new double[,] {
+            {  0,  2, -1 },
+            { -2,  0,  4 },
+            {  1, -4,  0 }
+        });
+
+        // Break the skew-symmetry by putting a non-zero on the diagonal
+        var brokenDiagonal = new Matrix(new double[,] {
+            {  1,  2, -1 },
+            { -2,  0,  4 },
+            {  1, -4,  0 }
+        });
+
+        Assert.True(antiSymmetric.IsAntiSymmetric());
+        Assert.False(brokenDiagonal.IsAntiSymmetric());
+    }
+    
+    [Fact]
+    public void GetDiagonal_SquareAndRectangular_ExtractsCorrectly()
+    {
+        // Arrange
+        var square = new Matrix(new double[,] {
+            { 1, 2, 3 },
+            { 4, 5, 6 },
+            { 7, 8, 9 }
+        });
+
+        var tall = new Matrix(new double[,] {
+            { 10, 20 },
+            { 30, 40 },
+            { 50, 60 }
+        });
+        
+        var wide = new Matrix(new double[,] {
+            { 10, 20, 30 },
+            { 40, 50, 60 }
+        });
+
+        // Act
+        double[] sqDiag = square.GetDiagonal();
+        double[] tallDiag = tall.GetDiagonal();
+        double[] wideDiag = wide.GetDiagonal();
+
+        // Assert
+        Assert.Equal([1.0, 5.0, 9.0], sqDiag);
+        Assert.Equal([10.0, 40.0], tallDiag);
+        Assert.Equal([10.0, 50.0], wideDiag);
+    }
 }
