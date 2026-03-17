@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helix.ML", "Helix.ML\Helix.ML.csproj", "{FAE6D5DE-3DF4-48C0-BC48-E38CF6D11439}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helix.ML.Tests", "Helix.ML.Tests\Helix.ML.Tests.csproj", "{1AE40065-F32A-452D-9357-199879767012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helix.ML.Benchmark", "Helix.ML.Benchmark\Helix.ML.Benchmark.csproj", "{C8763AE7-235D-4B13-9256-EB1474AC1117}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FAE6D5DE-3DF4-48C0-BC48-E38CF6D11439}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAE6D5DE-3DF4-48C0-BC48-E38CF6D11439}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAE6D5DE-3DF4-48C0-BC48-E38CF6D11439}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAE6D5DE-3DF4-48C0-BC48-E38CF6D11439}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1AE40065-F32A-452D-9357-199879767012}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1AE40065-F32A-452D-9357-199879767012}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1AE40065-F32A-452D-9357-199879767012}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1AE40065-F32A-452D-9357-199879767012}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8763AE7-235D-4B13-9256-EB1474AC1117}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8763AE7-235D-4B13-9256-EB1474AC1117}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8763AE7-235D-4B13-9256-EB1474AC1117}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8763AE7-235D-4B13-9256-EB1474AC1117}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
