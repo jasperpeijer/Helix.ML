@@ -335,10 +335,10 @@ public readonly partial struct Matrix
 
         Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, Data.Length), () => 0.0, (range, loopState, localSum) =>
             {
-                int vectoeSize = Vector<double>.Count;
+                int vectorSize = Vector<double>.Count;
                 int i = range.Item1;
 
-                for (; i <= range.Item2 - vectoeSize; i += vectoeSize)
+                for (; i <= range.Item2 - vectorSize; i += vectorSize)
                 {
                     var v = new Vector<double>(currentData, i);
                     localSum += Vector.Dot(v, v);

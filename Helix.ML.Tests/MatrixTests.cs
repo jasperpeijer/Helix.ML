@@ -1202,4 +1202,83 @@ public class MatrixTests
         // The L1 norm is the sum of absolute values. 200,000 * |-2.0| = 400,000.
         Assert.Equal(400_000.0, l1);
     }
+    
+    [Fact]
+    public void EuclideanDistance_CalculatesCorrectly()
+    {
+        var p1 = new Matrix(1, 2, [0.0, 0.0]);
+        var p2 = new Matrix(1, 2, [3.0, 4.0]);
+
+        // The distance from the origin to (3,4) is 5.0
+        Assert.Equal(5.0, p1.EuclideanDistance(p2));
+    }
+    
+    [Fact]
+    public void CosineSimilarity_SameDirection_ReturnsOne()
+    {
+        var v1 = new Matrix(1, 2, [1.0, 1.0]);
+        var v2 = new Matrix(1, 2, [5.0, 5.0]); // 5x longer, but same exact direction
+
+        Assert.Equal(1.0, v1.CosineSimilarity(v2), 5);
+    }
+    
+    [Fact]
+    public void CosineSimilarity_SameDirection_ReturnsNegativeOne()
+    {
+        var v1 = new Matrix(1, 2, [-1.0, -1.0]);
+        var v2 = new Matrix(1, 2, [5.0, 5.0]); // 5x longer, but same exact direction
+
+        Assert.Equal(-1.0, v1.CosineSimilarity(v2), 5);
+    }
+    
+    [Fact]
+    public void CosineSimilarity_Orthogonal_ReturnsZero()
+    {
+        var v1 = new Matrix(1, 2, [1.0, 0.0]); // Pointing purely Right
+        var v2 = new Matrix(1, 2, [0.0, 1.0]); // Pointing purely Up
+
+        // 90-degree angle means 0 similarity
+        Assert.Equal(0.0, v1.CosineSimilarity(v2), 5);
+    }
+    
+    [Fact]
+    public void DotProduct_SmallMatrices_CalculatesCorrectly()
+    {
+        // Arrange
+        var v1 = new Matrix(1, 3, [1.0, 2.0, 3.0]);
+        var v2 = new Matrix(1, 3, [4.0, -5.0, 6.0]);
+        
+        // Act
+        double result = v1.DotProduct(v2);
+
+        // Assert: (1 * 4) + (2 * -5) + (3 * 6) = 4 - 10 + 18 = 12.0
+        Assert.Equal(12.0, result);
+    }
+    
+    [Fact]
+    public void DotProduct_MassiveMatrices_UsesParallelReductionCorrectly()
+    {
+        // Arrange: 1000 x 200 = 200,000 elements. 
+        // This easily exceeds the 100,000 threshold, forcing the Parallel path.
+        var m1 = Matrix.Ones(1000, 200) * 2.0; // Every element is 2.0
+        var m2 = Matrix.Ones(1000, 200) * 3.0; // Every element is 3.0
+
+        // Act
+        double result = m1.DotProduct(m2);
+
+        // Assert: Each element pair contributes 6.0 (2.0 * 3.0). 
+        // 200,000 pairs * 6.0 = 1,200,000.0
+        Assert.Equal(1_200_000.0, result);
+    }
+    
+    [Fact]
+    public void DotProduct_MismatchedSizes_ThrowsArgumentException()
+    {
+        // Arrange
+        var v1 = new Matrix(1, 3); // 3 elements
+        var v2 = new Matrix(1, 4); // 4 elements
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => v1.DotProduct(v2));
+    }
 }

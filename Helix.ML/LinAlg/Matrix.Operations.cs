@@ -329,6 +329,70 @@ public readonly partial struct Matrix
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Matrix operator &(Matrix top, Matrix bottom) => top.Concatenate(bottom);
+
+    /// <summary>
+    /// Calculates the flat, element-wise Dot Product of two matrices/vectors.
+    /// </summary>
+    public double DotProduct(Matrix other)
+    {
+        if (this.Data.Length != other.Data.Length)
+        {
+            throw new ArgumentException("Matrices must have the same total number of elements to calculate a flat dot product.");
+        }
+        
+        var thisData = this.Data;
+        var otherData = other.Data;
+
+        if (Data.Length < 100_000) {
+            var sum = 0.0;
+            int vectorSize = Vector<double>.Count;
+            int i = 0;
+
+            for (; i < thisData.Length - vectorSize; i += vectorSize)
+            {
+                var va = new Vector<double>(thisData, i);
+                var vb = new Vector<double>(otherData, i);
+                sum += Vector.Dot(va, vb);
+            }
+
+            for (; i < thisData.Length; i++)
+            {
+                sum += thisData[i] * otherData[i];
+            }
+
+            return sum;
+        }
+
+        double globalSum = 0.0;
+        object lockObj = new object();
+
+        Parallel.ForEach(
+            System.Collections.Concurrent.Partitioner.Create(0, thisData.Length),
+            () => 0.0,
+            (range, loopState, localSum) =>
+            {
+                int vectorSize = Vector<double>.Count;
+                int i = 0;
+
+                for (; i < thisData.Length - vectorSize; i += vectorSize)
+                {
+                    var va = new Vector<double>(thisData, i);
+                    var vb = new Vector<double>(otherData, i);
+                    localSum += Vector.Dot(va, vb);
+                }
+
+                for (; i < thisData.Length; i++)
+                {
+                    localSum += thisData[i] * otherData[i];
+                }
+
+                return localSum;
+            },
+            (localSum) => { lock (lockObj) globalSum += localSum; }
+        );
+
+        return globalSum;
+    }
     
     #endregion
 }
