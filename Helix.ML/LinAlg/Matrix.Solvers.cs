@@ -13,24 +13,20 @@ public readonly partial struct Matrix
     public Matrix Inverse(double knownDeterminant, double tolerance = 1e-14)
     {
         if (!IsSquare)
-        {
             throw new InvalidOperationException("Only square matrices can be inverted.");
-        }
         
         // --- THE O(1) FAST PATH ---
         // If the matrix is orthogonal, the inverse is literally just the transpose!
         if (IsOrthogonal(tolerance)) return this.T;
 
         if (Math.Abs(knownDeterminant) < tolerance)
-        {
             throw new InvalidOperationException("Matrix is singular (determinant is 0) and cannot be inverted.");
-        }
         
         if (Rows == 1) return new Matrix(1, 1, [1.0 / Data[0]]);
 
         if (Rows == 2)
         {
-            double invDet = 1.0 / knownDeterminant;
+            var invDet = 1.0 / knownDeterminant;
             
             return new Matrix(2, 2, [
                 Data[3] * invDet, -Data[1] * invDet,
@@ -47,7 +43,7 @@ public readonly partial struct Matrix
                 var minor = GetMinor(i, j);
                 var minorDeterminant = minor.Determinant();
 
-                double sign = ((i + j) % 2 == 0) ? 1.0 : -1.0;
+                var sign = ((i + j) % 2 == 0) ? 1.0 : -1.0;
                 cofactors[i, j] = minorDeterminant * sign;
             }
         }
@@ -74,10 +70,7 @@ public readonly partial struct Matrix
     /// TODO: Implement using SVD
     public Matrix PseudoInverse(double tolerance = 1e-14)
     {
-        if (IsSquare)
-        {
-            return this.Inverse();
-        }
+        if (IsSquare) return this.Inverse();
 
         try
         {

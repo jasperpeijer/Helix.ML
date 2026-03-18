@@ -22,9 +22,7 @@ public readonly partial struct Matrix
     public Matrix(int rows, int cols)
     {
         if (rows <= 0 || cols <= 0)
-        {
             throw new ArgumentException("Matrix dimensions must be strictly positive.");
-        }
         
         Rows = rows;
         Cols = cols;
@@ -46,9 +44,7 @@ public readonly partial struct Matrix
         var cols = data.GetLength(1);
 
         if (rows == 0 || cols == 0)
-        {
             throw new ArgumentException("Matrix dimensions must be strictly positive.");
-        }
 
         Rows = rows;
         Cols = cols;
@@ -67,14 +63,10 @@ public readonly partial struct Matrix
     public Matrix(int rows, int cols, double[] data)
     {
         if (rows <= 0 || cols <= 0)
-        {
             throw new ArgumentException("Matrix dimensions must be strictly positive.");
-        }
 
         if (data.Length != rows * cols)
-        {
             throw new ArgumentException("Data length does not match the provided matrix dimensions.");
-        }
         
         Rows = rows;
         Cols = cols;
@@ -110,10 +102,10 @@ public readonly partial struct Matrix
             
             var result = new Matrix(rowLength, colLength);
 
-            for (int i = 0; i < rowLength; i++)
+            for (var i = 0; i < rowLength; i++)
             {
-                int srcIndex = ((rowOffset + i) * Cols) + colOffset;
-                int dstIndex = i * colLength;
+                var srcIndex = ((rowOffset + i) * Cols) + colOffset;
+                var dstIndex = i * colLength;
                 
                 Array.Copy(this.Data, srcIndex, result.Data, dstIndex, colLength);
             }
@@ -151,15 +143,7 @@ public readonly partial struct Matrix
 
         const double epsilon = 1e-14;
 
-        for (int i = 0; i < left.Data.Length; i++)
-        {
-            if (System.Math.Abs(left.Data[i] - right.Data[i]) > epsilon)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return !left.Data.Where((t, i) => Math.Abs(t - right.Data[i]) > epsilon).Any();
     }
     
     public static bool operator !=(Matrix left, Matrix right) => !(left == right);
@@ -168,7 +152,7 @@ public readonly partial struct Matrix
 
     public override int GetHashCode()
     {
-        int hash = HashCode.Combine(Rows, Cols);
+        var hash = HashCode.Combine(Rows, Cols);
         if (Data.Length > 0) hash = HashCode.Combine(hash, Data[0]);
         if (Data.Length > 1) hash = HashCode.Combine(hash, Data[^1]);
 
@@ -185,16 +169,13 @@ public readonly partial struct Matrix
     public bool IsCloseTo(Matrix other, double rtol = 1e-5, double atol = 1e-8)
     {
         if (Shape != other.Shape)
-        {
             throw new ArgumentException($"Cannot compare matrices of different shapes. Got {Shape} and {other.Shape}.");
-        }
 
-        for (int i = 0; i < Data.Length; i++)
+        for (var i = 0; i < Data.Length; i++)
         {
-            double a = Data[i];
-            double b = other.Data[i];
-
-            double allowedDifference = atol + (rtol * Math.Abs(b));
+            var a = Data[i];
+            var b = other.Data[i];
+            var allowedDifference = atol + (rtol * Math.Abs(b));
 
             if (Math.Abs(a - b) > allowedDifference) return false;
         }
@@ -203,16 +184,4 @@ public readonly partial struct Matrix
     }
     
     #endregion
-}
-
-public enum NormType
-{
-    // L1 Family
-    L1 = 1,
-    Manhattan = 1,
-
-    // L2 Family
-    L2 = 2,
-    Euclidean = 2,
-    Frobenius = 2,
 }

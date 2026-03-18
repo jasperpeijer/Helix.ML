@@ -15,10 +15,7 @@ public readonly partial struct Matrix
     /// <summary>
     /// Creates a matrix of the specified shape filled entirely with zeros.
     /// </summary>
-    public static Matrix Zeros((int rows, int cols) shape)
-    {
-        return new Matrix(shape.rows, shape.cols);
-    }
+    public static Matrix Zeros((int rows, int cols) shape) => new Matrix(shape.rows, shape.cols);
 
     /// <summary>
     /// Creates an Identity matrix. If the dimensions are unequal, it places 1.0s on the main diagonal 
@@ -27,18 +24,13 @@ public readonly partial struct Matrix
     public static Matrix Identity(int rows, int cols)
     {
         if (rows <= 0 || cols <= 0)
-        {
             throw new ArgumentException("Matrix dimensions must be strictly positive.");    
-        }
 
         var identityMatrix = new Matrix(rows, cols);
         
-        int minDim = Math.Min(rows, cols);
+        var minDim = Math.Min(rows, cols);
 
-        for (int i = 0; i < minDim; i++)
-        {
-            identityMatrix.Data[(i * cols) + i] = 1.0;
-        }
+        for (var i = 0; i < minDim; i++) identityMatrix.Data[(i * cols) + i] = 1.0;
 
         return identityMatrix;
     }
@@ -78,7 +70,7 @@ public readonly partial struct Matrix
     {
         var matrix = new Matrix(rows, cols);
 
-        for (int i = 0; i < matrix.Data.Length; i++)
+        for (var i = 0; i < matrix.Data.Length; i++)
         {
             matrix.Data[i] = min + (System.Random.Shared.NextDouble() * (max - min));
         }
@@ -112,7 +104,7 @@ public readonly partial struct Matrix
     {
         var matrix = new Matrix(rows, cols);
 
-        for (int i = 0; i < matrix.Data.Length; i++)
+        for (var i = 0; i < matrix.Data.Length; i++)
         {
             matrix.Data[i] = System.Random.Shared.Next(min, max);
         }
@@ -133,19 +125,19 @@ public readonly partial struct Matrix
     /// </summary>
     public Matrix Transpose()
     {
-        int rows = this.Rows;
-        int cols = this.Cols;
-        double[] originalData = this.Data;
+        var rows = Rows;
+        var cols = Cols;
+        var originalData = Data;
         
         var result = new Matrix(cols, rows);
 
         Parallel.For(0, Rows, i =>
         {
-            int originalRowOffset = i * cols;
+            var originalRowOffset = i * cols;
 
             for (var j = 0; j < cols; j++)
             {
-                double value = originalData[originalRowOffset + j];
+                var value = originalData[originalRowOffset + j];
                 result.Data[j * result.Cols + i] = value;
             }
         });

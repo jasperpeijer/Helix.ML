@@ -17,7 +17,7 @@ public readonly partial struct Matrix
     /// </summary>
     public double CosineSimilarity(Matrix other)
     {
-        double dotProduct = DotProduct(other);
+        var dotProduct = DotProduct(other);
         double normA = this.NormL2(), normB = other.NormL2();
 
         if (normA == 0.0 || normB == 0.0) return 0.0;

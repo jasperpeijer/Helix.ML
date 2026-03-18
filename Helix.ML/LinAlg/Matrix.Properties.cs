@@ -13,16 +13,11 @@ public readonly partial struct Matrix
     public double Trace(bool allowRectangular = false)
     {
         if (!allowRectangular && !IsSquare)
-        {
             throw new InvalidOperationException("The Trace is only defined for square matrices.");
-        }
 
-        double sum = 0.0;
+        var sum = 0.0;
 
-        for (int i = 0; i < Math.Min(Rows, Cols); i++)
-        {
-            sum += Data[(i * Cols) + i];
-        }
+        for (var i = 0; i < Math.Min(Rows, Cols); i++) sum += Data[(i * Cols) + i];
 
         return sum;
     }
@@ -34,21 +29,18 @@ public readonly partial struct Matrix
     private Matrix GetMinor(int dropRow, int dropCol)
     {
         var result = new Matrix(Rows - 1, Cols - 1);
-        int targetRow = 0;
+        var targetRow = 0;
 
         for (var i = 0; i < Rows; i++)
         {
             if (i == dropRow) continue;
 
-            if (dropCol > 0)
-            {
-                Array.Copy(this.Data, i * Cols, result.Data, 
+            if (dropCol > 0) Array.Copy(this.Data, i * Cols, result.Data, 
                     targetRow * result.Cols, dropCol);
-            }
 
             if (dropCol < Cols - 1)
             {
-                int elementsAfter = Cols - dropCol - 1;
+                var elementsAfter = Cols - dropCol - 1;
                 Array.Copy(this.Data, (i * Cols) + dropCol + 1, result.Data,
                     (targetRow * result.Cols) + dropCol, elementsAfter);
                 
@@ -68,39 +60,31 @@ public readonly partial struct Matrix
     public double Determinant()
     {
         if (!IsSquare)
-        {
             throw new InvalidOperationException("The Determinant is strictly defined for square matrices.");
-        }
         
         // --- THE O(N) FAST PATH ---
         // If the matrix is triangular or diagonal, the determinant is just the product of the main diagonal!
         if (IsUpperTriangular() || IsLowerTriangular())
         {
-            double det = 1.0;
+            var det = 1.0;
 
-            for (int i = 0; i < Rows; i++)
-            {
-                det *= this[i, i];
-            }
+            for (var i = 0; i < Rows; i++) det *= this[i, i];
 
             return det;
         }
 
-        if (Rows % 2 != 0 && IsAntiSymmetric())
-        {
-            return 0.0;
-        }
+        if (Rows % 2 != 0 && IsAntiSymmetric()) return 0.0;
         
         if (Rows == 1) return Data[0];
         
         if (Rows == 2) return (Data[0] * Data[3]) - (Data[1] * Data[2]);
 
-        double determinant = 0.0;
-        int sign = 1;
+        var determinant = 0.0;
+        var sign = 1;
 
-        for (int j = 0; j < Cols; j++)
+        for (var j = 0; j < Cols; j++)
         {
-            double element = this[0, j];
+            var element = this[0, j];
             
             // HUGE OPTIMIZATION: If the element is 0.0, anything multiplied by it is 0.
             // We can skip the entire recursive calculation for this branch!
@@ -211,8 +195,8 @@ public readonly partial struct Matrix
     {
         if (!IsSquare) return false;
 
-        var identity = Matrix.Identity(Rows);
-        var product = this * this.Transpose();
+        var identity = Identity(Rows);
+        var product = this * Transpose();
 
         return product.IsCloseTo(identity, atol: tolerance);
     }
@@ -222,10 +206,10 @@ public readonly partial struct Matrix
     /// </summary>
     public double[] GetDiagonal()
     {
-        int minDim = Math.Min(Rows, Cols);
-        double[] diag = new double[minDim];
+        var minDim = Math.Min(Rows, Cols);
+        var diag = new double[minDim];
 
-        for (int i = 0; i < minDim; i++)
+        for (var i = 0; i < minDim; i++)
         {
             diag[i] = this[i, i];
         }
