@@ -12,45 +12,31 @@ public readonly partial struct Matrix
     /// </summary>
     public static Matrix operator *(Matrix m, double scalar)
     {
-        double[] result = new double[m.Data.Length];
-        int i = 0;
-        int vectorSize = Vector<double>.Count;
+        var result = new double[m.Data.Length];
         var data = m.Data;
-        
-        // Broadcast the single scalar value into a full hardware vector
-        var vScalar = new Vector<double>(scalar);
 
-        if (data.Length < 100_000) {
-            for (; i < m.Data.Length - vectorSize; i += vectorSize)
-            {
-                var va = new Vector<double>(m.Data, i);
-                var vResult = va * vScalar;
-                vResult.CopyTo(result, i);
-            }
-
-            for (; i < m.Data.Length; i++)
-            {
-                result[i] = m.Data[i] * scalar;
-            }
-        }
+        if (data.Length < 100_000) ProcessChunk(0, data.Length, data, scalar, result);
         else
         {
-            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, data.Length), range =>
-            {
-                int i = range.Item1;
-                int vectorSize = Vector<double>.Count;
-                var vScalar = new Vector<double>(scalar);
-                
-                for (; i <= range.Item2 - vectorSize; i += vectorSize)
-                {
-                    var va = new Vector<double>(data, i);
-                    (va * vScalar).CopyTo(result, i);
-                }
-                for (; i < range.Item2; i++) result[i] = data[i] * scalar;
-            });
+            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, data.Length),
+                range => { ProcessChunk(range.Item1, range.Item2, data, scalar, result); });
         }
-        
+
         return new Matrix(m.Shape, result);
+        
+        static void ProcessChunk(int start, int end, double[] src, double s, double[] dst)
+        {
+            var vectorSize = Vector<double>.Count;
+            var i = start;
+            var vScalar = new Vector<double>(s);
+            
+            for (; i <= end - vectorSize; i += vectorSize)
+            {
+                var va = new Vector<double>(src, i);
+                (va * vScalar).CopyTo(dst, i);
+            }
+            for (; i < end; i++) dst[i] = src[i] * s;
+        }
     }
     
     /// <summary>
@@ -65,42 +51,30 @@ public readonly partial struct Matrix
     public static Matrix operator +(Matrix m, double scalar)
     {
         var result = new double[m.Data.Length];
-        var vectorSize = Vector<double>.Count;
-        var vScalar = new Vector<double>(scalar);
-        int i = 0;
         var data = m.Data;
 
-        if (data.Length < 100_000) {
-            for (; i <= m.Data.Length - vectorSize; i += vectorSize)
-            {
-                var vA = new Vector<double>(m.Data, i);
-                var vRes = vA + vScalar;
-                vRes.CopyTo(result, i);
-            }
-
-            for (; i < m.Data.Length; i++)
-            {
-                result[i] = m.Data[i] + scalar;
-            }
-        }
+        if (data.Length < 100_000) ProcessChunk(0, data.Length, data, scalar, result);
         else
         {
-            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, data.Length), range =>
-            {
-                int i = range.Item1;
-                int vectorSize = Vector<double>.Count;
-                var vScalar = new Vector<double>(scalar);
-
-                for (; i <= range.Item2 - vectorSize; i += vectorSize)
-                {
-                    var vA = new Vector<double>(data, i);
-                    (vA + vScalar).CopyTo(result, i);
-                }
-                for (; i < range.Item2; i++) result[i] = data[i] + scalar;
-            });
+            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, data.Length),
+                range => { ProcessChunk(range.Item1, range.Item2, data, scalar, result); });
         }
-        
+
         return new Matrix(m.Shape, result);
+        
+        static void ProcessChunk(int start, int end, double[] src, double s, double[] dst)
+        {
+            var vectorSize = Vector<double>.Count;
+            var i = start;
+            var vScalar = new Vector<double>(s);
+
+            for (; i <= end - vectorSize; i += vectorSize)
+            {
+                var vA = new Vector<double>(src, i);
+                (vA + vScalar).CopyTo(dst, i);
+            }
+            for (; i < end; i++) dst[i] = src[i] + s;
+        }
     }
     
     /// <summary>
@@ -115,103 +89,46 @@ public readonly partial struct Matrix
     public static Matrix operator +(Matrix m1, Matrix m2)
     {
         if (m1.Shape != m2.Shape)
-        {
             throw new ArgumentException($"Matrix shapes must match for addition. Got {m1.Shape} and {m2.Shape}.");
-        }
         
         var result = new double[m1.Data.Length];
-        var i = 0;
-        var vectorSize = Vector<double>.Count;
         var data1 = m1.Data;
         var data2 = m2.Data;
 
-        if (data1.Length < 100_000)
-        {
-            for (; i < m1.Data.Length - vectorSize; i += vectorSize)
-            {
-                var va = new Vector<double>(m1.Data, i);
-                var vb = new Vector<double>(m2.Data, i);
-                var vResult = va + vb;
-
-                vResult.CopyTo(result, i);
-            }
-
-            for (; i < m1.Data.Length; i++) result[i] = m1.Data[i] + m2.Data[i];
-        }
+        if (data1.Length < 100_000) ProcessChunk(0, data1.Length, data1, data2, result);
         else
         {
             Parallel.ForEach(
                 System.Collections.Concurrent.Partitioner.Create(0, data1.Length),
-                (range) =>
-                {
-                    int i = range.Item1;
-                    int vectorSize = Vector<double>.Count;
-
-                    for (; i <= range.Item2 - vectorSize; i += vectorSize)
-                    {
-                        var va = new Vector<double>(data1, i);
-                        var vb = new Vector<double>(data2, i);
-                        (va + vb).CopyTo(result, i);
-                    }
-
-                    for (; i < range.Item2; i++) result[i] = data1[i] + data2[i];
-                }
+                (range) => { ProcessChunk(range.Item1, range.Item2, data1, data2, result); }
             );
         }
-
+        
         return new Matrix(m1.Shape, result);
+        
+        static void ProcessChunk(int start, int end, double[] a, double[] b, double[] dst)
+        {
+            var vectorSize = Vector<double>.Count;
+            var i = start;
+            for (; i <= end - vectorSize; i += vectorSize)
+            {
+                var va = new Vector<double>(a, i);
+                var vb = new Vector<double>(b, i);
+                (va + vb).CopyTo(dst, i);
+            }
+            for (; i < end; i++) dst[i] = a[i] + b[i];
+        }
     }
 
     /// <summary>
     /// Increments every element in the matrix by 1.0 using SIMD hardware acceleration.
     /// </summary>
-    public static Matrix operator ++(Matrix m)
-    {
-        var result = new Matrix(m.Rows, m.Cols);
-        int vectorSize = Vector<double>.Count;
-        int i = 0;
-
-        var vOne = new Vector<double>(1.0);
-
-        for (; i <= m.Data.Length - vectorSize; i += vectorSize)
-        {
-            var vM = new Vector<double>(m.Data, i);
-            var vRes = vM + vOne;
-            vRes.CopyTo(result.Data, i);
-        }
-
-        for (; i < m.Data.Length; i++)
-        {
-            result.Data[i] = m.Data[i] + 1.0;
-        }
-
-        return result;
-    }
+    public static Matrix operator ++(Matrix m) => m + 1.0;
 
     /// <summary>
     /// Decrements every element in the matrix by 1.0 using SIMD hardware acceleration.
     /// </summary>
-    public static Matrix operator --(Matrix m)
-    {
-        var result = new Matrix(m.Rows, m.Cols);
-        var vectorSize = Vector<double>.Count;
-        int i = 0;
-        var vOne = new Vector<double>(1.0);
-
-        for (; i <= m.Data.Length - vectorSize; i += vectorSize)
-        {
-            var vM = new Vector<double>(m.Data, i);
-            var vRes = vM - vOne;
-            vRes.CopyTo(result.Data, i);
-        }
-
-        for (; i < m.Data.Length; i++)
-        {
-            result.Data[i] = m.Data[i] - 1.0;
-        }
-
-        return result;
-    }
+    public static Matrix operator --(Matrix m) => m + (-1.0);
 
     /// <summary>
     /// Unary negation: Flips the sign of every element in the matrix (-A).
@@ -229,78 +146,65 @@ public readonly partial struct Matrix
     /// </summary>
     public static Matrix operator -(Matrix m1, Matrix m2)
     {
-        if (m1.Shape != m2.Shape)
-        {
+        if (m1.Shape != m2.Shape) 
             throw new ArgumentException($"Matrix shapes must match for addition. Got {m1.Shape} and {m2.Shape}.");
-        }
         
         var result = new double[m1.Data.Length];
-        var i = 0;
-        var vectorSize = Vector<double>.Count;
         var data1 = m1.Data;
         var data2 = m2.Data;
         
-        if (data1.Length < 100_000) {
-            for (; i < m1.Data.Length - vectorSize; i += vectorSize)
-            {
-                var va = new Vector<double>(m1.Data, i);
-                var vb = new Vector<double>(m2.Data, i);
-                var vResult = va - vb;
-
-                vResult.CopyTo(result, i);
-            }
-
-            for (; i < m1.Data.Length; i++)
-            {
-                result[i] = m1.Data[i] - m2.Data[i];
-            }
-        }
+        if (data1.Length < 100_000) ProcessChunk(0, data1.Length, data1, data2, result);
         else
         {
             Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, data1.Length), range =>
             {
-                int i = range.Item1;
-                int vectorSize = Vector<double>.Count;
-                for (; i <= range.Item2 - vectorSize; i += vectorSize)
-                {
-                    var va = new Vector<double>(data1, i);
-                    var vb = new Vector<double>(data2, i);
-                    (va - vb).CopyTo(result, i);
-                }
-                for (; i < range.Item2; i++) result[i] = data1[i] - data2[i];
+                ProcessChunk(range.Item1, range.Item2, data1, data2, result);
             });
         }
         
         return new Matrix(m1.Shape, result);
+        
+        static void ProcessChunk(int start, int end, double[] a, double[] b, double[] dst)
+        {
+            var vectorSize = Vector<double>.Count;
+            var i = start;
+            
+            for (; i <= end - vectorSize; i += vectorSize)
+            {
+                var va = new Vector<double>(a, i);
+                var vb = new Vector<double>(b, i);
+                (va - vb).CopyTo(dst, i);
+            }
+            
+            for (; i < end; i++) dst[i] = a[i] - b[i];
+        }
     }
 
     /// <summary>
     /// Performs high-performance Matrix-Matrix Multiplication (Dot Product).
-    /// Utilizes loop reordering, SIMD vectorization, and multi-core parallelism.
+    /// Utilizes loop reordering, SIMD vectorization, and multicore parallelism.
     /// </summary>
     public static Matrix operator *(Matrix a, Matrix b)
     {
         if (a.Cols != b.Rows)
-        {
             throw new ArgumentException($"Inner dimensions must match. Got A: {a.Shape} and B: {b.Shape}.");
-        }
 
         var result = new Matrix(a.Rows, b.Cols);
-        int vectorSize = Vector<double>.Count;
+        var vectorSize = Vector<double>.Count;
 
         Parallel.For(0, a.Rows, i =>
         {
-            int cRowOffset = i * result.Cols;
+            var cRowOffset = i * result.Cols;
 
-            for (int k = 0; k < a.Cols; k++)
+            for (var k = 0; k < a.Cols; k++)
             {
-                double a_ik = a.Data[i * a.Cols + k];
+                var aik = a.Data[i * a.Cols + k];
 
-                if (a_ik == 0) continue;
+                if (aik == 0) continue;
                 
-                var vA = new Vector<double>(a_ik);
-                int bRowOffset = k * b.Cols;
-                int j = 0;
+                var vA = new Vector<double>(aik);
+                var bRowOffset = k * b.Cols;
+                var j = 0;
 
                 for (; j <= b.Cols - vectorSize; j += vectorSize)
                 {
@@ -314,7 +218,7 @@ public readonly partial struct Matrix
 
                 for (; j < b.Cols; j++)
                 {
-                    result.Data[cRowOffset + j] += a_ik * b.Data[bRowOffset + j];
+                    result.Data[cRowOffset + j] += aik * b.Data[bRowOffset + j];
                 }
             }
         });
@@ -327,10 +231,7 @@ public readonly partial struct Matrix
     /// </summary>
     public static Matrix operator /(Matrix a, double scalar)
     {
-        if (scalar == 0)
-        {
-            throw new DivideByZeroException("Cannot divide a matrix by zero.");
-        }
+        if (scalar == 0) throw new DivideByZeroException("Cannot divide a matrix by zero.");
         
         return a * (1.0/scalar);
     }
@@ -341,17 +242,14 @@ public readonly partial struct Matrix
     /// </summary>
     public Matrix Augment(Matrix right)
     {
-        if (this.Rows != right.Rows)
-        {
+        if (Rows != right.Rows)
             throw new ArgumentException("Matrices must have the exact same number of rows to be augmented.");
-        }
-        
-        var result = new Matrix(this.Rows, this.Cols + right.Cols);
 
-        result[.., 0..this.Cols] = this;
-        result[.., this.Cols..] = right;
-
-        return result;
+        return new Matrix(this.Rows, this.Cols + right.Cols)
+        {
+            [.., 0..Cols] = this,
+            [.., this.Cols..] = right
+        };;
     }
 
     /// <summary>
@@ -367,9 +265,7 @@ public readonly partial struct Matrix
     public Matrix Concatenate(Matrix bottom)
     {
         if (this.Cols != bottom.Cols)
-        {
             throw new ArgumentException("Matrices must have the exact same number of columns to be concatenated vertically.");
-        }
         
         var result = new Matrix(this.Rows + bottom.Rows, this.Cols);
 
@@ -391,62 +287,129 @@ public readonly partial struct Matrix
     public double DotProduct(Matrix other)
     {
         if (this.Data.Length != other.Data.Length)
-        {
             throw new ArgumentException("Matrices must have the same total number of elements to calculate a flat dot product.");
-        }
         
         var thisData = this.Data;
         var otherData = other.Data;
 
-        if (Data.Length < 100_000) {
-            var sum = 0.0;
-            int vectorSize = Vector<double>.Count;
-            int i = 0;
+        if (Data.Length < 100_000) return ProcessChunk(0, thisData.Length, thisData, otherData);
+        else
+        {
 
-            for (; i <= thisData.Length - vectorSize; i += vectorSize)
-            {
-                var va = new Vector<double>(thisData, i);
-                var vb = new Vector<double>(otherData, i);
-                sum += Vector.Dot(va, vb);
-            }
+            var globalSum = 0.0;
+            var lockObj = new object();
 
-            for (; i < thisData.Length; i++)
-            {
-                sum += thisData[i] * otherData[i];
-            }
+            Parallel.ForEach(
+                System.Collections.Concurrent.Partitioner.Create(0, thisData.Length),
+                () => 0.0,
+                (range, loopState, localSum) => localSum + ProcessChunk(range.Item1, range.Item2, thisData, otherData),
+                (localSum) =>
+                {
+                    lock (lockObj) globalSum += localSum;
+                }
+            );
 
-            return sum;
+            return globalSum;
         }
 
-        double globalSum = 0.0;
-        object lockObj = new object();
+        static double ProcessChunk(int start, int end, double[] a, double[] b)
+        {
+            var sum = 0.0;
+            var vectorSize = Vector<double>.Count;
+            var i = start;
 
-        Parallel.ForEach(
-            System.Collections.Concurrent.Partitioner.Create(0, thisData.Length),
-            () => 0.0,
-            (range, loopState, localSum) =>
+            for (; i <= end - vectorSize; i += vectorSize)
             {
-                int vectorSize = Vector<double>.Count;
-                int i = range.Item1;
+                var va = new Vector<double>(a, i);
+                var vb = new Vector<double>(b, i);
+                sum += Vector.Dot(va, vb);
+            }
+            for (; i < end; i++) sum += a[i] * b[i];
+            
+            return sum;
+        }
+    }
 
-                for (; i <= range.Item2 - vectorSize; i += vectorSize)
+    /// <summary>
+    /// Computes the Hadamard Product (element-wise multiplication) of two matrices.
+    /// Used heavily in neural network activation derivatives and dropout masks.
+    /// </summary>
+    public Matrix HadamardProduct(Matrix other)
+    {
+        if (Shape != other.Shape)
+            throw new ArgumentException($"Matrix shapes must match for addition. Got {Shape} and {other.Shape}.");
+        
+        var result = new double[Data.Length];
+        var data1 = Data;
+        var data2 = other.Data;
+
+        if (data1.Length < 100_000) ProcessChunk(0, data1.Length, data1, data2, result);
+        else
+        {
+            Parallel.ForEach(
+                System.Collections.Concurrent.Partitioner.Create(0, data1.Length),
+                (range) =>
                 {
-                    var va = new Vector<double>(thisData, i);
-                    var vb = new Vector<double>(otherData, i);
-                    localSum += Vector.Dot(va, vb);
+                    ProcessChunk(0, data1.Length, data1, data2, result);
                 }
+            );
+        }
 
-                for (; i < range.Item2; i++)
-                {
-                    localSum += thisData[i] * otherData[i];
-                }
+        return new Matrix(Shape, result);
 
-                return localSum;
-            },
-            (localSum) => { lock (lockObj) globalSum += localSum; }
-        );
+        static void ProcessChunk(int start, int end, double[] a, double[] b, double[] res)
+        {
+            var vectorSize = Vector<double>.Count;
+            var i = start;
+            
+            // Notice the correct <= here!
+            for (; i <= end - vectorSize; i += vectorSize)
+            {
+                var va = new Vector<double>(a, i);
+                var vb = new Vector<double>(b, i);
+                (va * vb).CopyTo(res, i);
+            }
+            for (; i < end; i++) res[i] = a[i] * b[i];
+        }
+    }
 
-        return globalSum;
+    /// <summary>
+    /// Broadcasts a 1D vector (like biases) across every row of this 2D matrix.
+    /// </summary>
+    public Matrix BroadcastAdd(Matrix rowVector)
+    {
+        if (rowVector.Rows != 1)
+            throw new ArgumentException("The broadcasted matrix must be a 1D row vector (Rows == 1).");
+        
+        if (this.Cols != rowVector.Cols)
+            throw new ArgumentException("The vector must have the same number of columns as the target matrix.");
+
+        var result = new Matrix(Rows, Cols);
+        var thisData = this.Data;
+        var otherData = rowVector.Data;
+        var resData = result.Data;
+        var cols = Cols;
+
+        Parallel.For(0, Rows, i =>
+        {
+            var rowOffset = i * cols;
+            var vectorSize = Vector<double>.Count;
+            var j = 0;
+
+            for (; j <= cols - vectorSize; j += vectorSize)
+            {
+                var vA = new Vector<double>(thisData, rowOffset + j);
+                var vB = new Vector<double>(otherData, j);
+                (vA + vB).CopyTo(resData, rowOffset + j);
+            }
+
+            for (; j < cols; j++)
+            {
+                resData[rowOffset + j] = thisData[rowOffset + j] + otherData[j];
+            }
+        });
+
+        return result;
     }
     
     #endregion

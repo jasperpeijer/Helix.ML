@@ -1326,4 +1326,35 @@ public class MatrixTests
         Assert.Equal(15.0, result.Data[0]);
         Assert.Equal(15.0, result.Data[^1]);
     }
+    
+    [Fact]
+    public void HadamardProduct_CalculatesElementWiseMultiplicationCorrectly()
+    {
+        var m1 = new Matrix(new double[,] { { 1.0, 2.0 }, { 3.0, 4.0 } });
+        var m2 = new Matrix(new double[,] { { 2.0, 3.0 }, { 4.0, 5.0 } });
+
+        var result = m1.HadamardProduct(m2);
+
+        // Should be exactly 1*2, 2*3, 3*4, 4*5
+        Assert.Equal(2.0, result[0, 0]);
+        Assert.Equal(6.0, result[0, 1]);
+        Assert.Equal(12.0, result[1, 0]);
+        Assert.Equal(20.0, result[1, 1]);
+    }
+    
+    [Fact]
+    public void HadamardProduct_MassiveMatrices_UsesParallelPathCorrectly()
+    {
+        // Arrange: 200,000 elements triggers the parallel path
+        var m1 = Matrix.Ones(1000, 200) * 2.0; 
+        var m2 = Matrix.Ones(1000, 200) * 3.0; 
+
+        // Act
+        var result = m1.HadamardProduct(m2);
+
+        // Assert
+        Assert.Equal(6.0, result.Data[0]);
+        Assert.Equal(6.0, result.Data[100_000]);
+        Assert.Equal(6.0, result.Data[^1]);
+    }
 }
