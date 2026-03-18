@@ -1357,4 +1357,40 @@ public class MatrixTests
         Assert.Equal(6.0, result.Data[100_000]);
         Assert.Equal(6.0, result.Data[^1]);
     }
+    
+    [Fact]
+    public void BroadcastAdd_AddsVectorToEveryRowCorrectly()
+    {
+        // Arrange: A standard 2x3 matrix
+        var m = new Matrix(new double[,] { 
+            { 1.0, 2.0, 3.0 }, 
+            { 4.0, 5.0, 6.0 } 
+        });
+        
+        // Arrange: A 1x3 vector (like a Neural Network bias)
+        var bias = new Matrix(1, 3, [10.0, 100.0, 1000.0]);
+
+        // Act
+        var result = m.BroadcastAdd(bias);
+
+        // Assert: The bias should have been added perfectly to both rows independently
+        Assert.Equal(11.0, result[0, 0]); // 1 + 10
+        Assert.Equal(102.0, result[0, 1]); // 2 + 100
+        Assert.Equal(1003.0, result[0, 2]); // 3 + 1000
+
+        Assert.Equal(14.0, result[1, 0]); // 4 + 10
+        Assert.Equal(105.0, result[1, 1]); // 5 + 100
+        Assert.Equal(1006.0, result[1, 2]); // 6 + 1000
+    }
+    
+    [Fact]
+    public void BroadcastAdd_InvalidDimensions_ThrowsArgumentException()
+    {
+        var m = Matrix.Zeros(4, 5);
+        var invalidBias = Matrix.Zeros(1, 3); // Cols don't match
+        var invalidShape = Matrix.Zeros(2, 5); // Not a 1D vector
+
+        Assert.Throws<ArgumentException>(() => m.BroadcastAdd(invalidBias));
+        Assert.Throws<ArgumentException>(() => m.BroadcastAdd(invalidShape));
+    }
 }

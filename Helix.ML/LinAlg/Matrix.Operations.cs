@@ -302,7 +302,7 @@ public readonly partial struct Matrix
             Parallel.ForEach(
                 System.Collections.Concurrent.Partitioner.Create(0, thisData.Length),
                 () => 0.0,
-                (range, loopState, localSum) => localSum + ProcessChunk(range.Item1, range.Item2, thisData, otherData),
+                (range, _, localSum) => localSum + ProcessChunk(range.Item1, range.Item2, thisData, otherData),
                 (localSum) =>
                 {
                     lock (lockObj) globalSum += localSum;

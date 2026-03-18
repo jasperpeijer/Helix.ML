@@ -236,54 +236,37 @@ public readonly partial struct Matrix
     /// </summary>
     private double NormL1()
     {
-        if (Data.Length < 100_000)
-        {
-            var sum = 0.0;
-            var vectorSize = Vector<double>.Count;
-            var i = 0;
-
-            var vOnes = new Vector<double>(1.0);
-
-            for (; i <= Data.Length - vectorSize; i += vectorSize)
-            {
-                var v = new Vector<double>(Data, i);
-                var vAbs = Vector.Abs(v);
-                sum += Vector.Dot(v, vAbs);
-            }
-
-            for (; i < Data.Length; i++)
-            {
-                sum += Math.Abs(Data[i]);
-            }
-
-            return sum;
-        }
-
+        var data = Data;
+        
+        if (Data.Length < 100_000) return ProcessChunk(0, data.Length, data);
+        
         var globalSum = 0.0;
         var lockObj = new object();
-        double[] data = Data;
 
         Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, Data.Length), () => 0.0,
-            (range, loopState, localSum) =>
-            {
-                int vectorSize = Vector<double>.Count;
-                int i = range.Item1;
-                var vOnes = new Vector<double>(1.0);
-
-                for (; i <= range.Item2 - vectorSize; i += vectorSize)
-                {
-                    var v = new Vector<double>(data, i);
-                    localSum += Vector.Dot(Vector.Abs(v), vOnes);
-                }
-
-                for (; i < range.Item2; i++) localSum += Math.Abs(data[i]);
-
-                return localSum;
-            },
+            (range, _, localSum) => localSum + ProcessChunk(range.Item1, range.Item2, data),
             (localSum) => { lock (lockObj) globalSum += localSum; }
         );
 
         return globalSum;
+        
+        static double ProcessChunk(int start, int end, double[] src)
+        {
+            var sum = 0.0;
+            var vectorSize = Vector<double>.Count;
+            var i = start;
+            var vOnes = new Vector<double>(1.0);
+
+            for (; i <= end - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<double>(src, i);
+                sum += Vector.Dot(Vector.Abs(v), vOnes);
+            }
+
+            for (; i < end; i++) sum += Math.Abs(src[i]);
+            
+            return sum;
+        }
     }
 
     /// <summary>
@@ -292,56 +275,37 @@ public readonly partial struct Matrix
     /// </summary>
     private double NormL2()
     {
-        if (Data.Length < 100_000)
-        {
-            var sumOfSquares = 0.0;
-            var vectorSize = Vector<double>.Count;
-            var i = 0;
-
-            for (; i <= Data.Length - vectorSize; i += vectorSize)
-            {
-                var v = new Vector<double>(Data, i);
-                sumOfSquares += Vector.Dot(v, v);
-            }
-
-            for (; i < Data.Length; i++)
-            {
-                sumOfSquares += Data[i] * Data[i];
-            }
-
-            return Math.Sqrt(sumOfSquares);
-        }
+        var data = Data;
         
-        // Multithread optimization
+        if (Data.Length < 100_000) return Math.Sqrt(ProcessChunk(0, data.Length, data));
+        
         var globalSum = 0.0;
         var lockObj = new object();
-        double[] currentData = Data;
 
-        Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, Data.Length), () => 0.0, (range, loopState, localSum) =>
-            {
-                int vectorSize = Vector<double>.Count;
-                int i = range.Item1;
-
-                for (; i <= range.Item2 - vectorSize; i += vectorSize)
-                {
-                    var v = new Vector<double>(currentData, i);
-                    localSum += Vector.Dot(v, v);
-                }
-
-                for (; i < range.Item2; i++)
-                {
-                    localSum += currentData[i] * currentData[i];
-                }
-
-                return localSum;
-            }, 
-            (localSum) =>
-            {
-                lock (lockObj) globalSum += localSum;
-            }
+        Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, Data.Length), 
+            () => 0.0, 
+            (range, _, localSum) => localSum + ProcessChunk(range.Item1, range.Item2, data), 
+            (localSum) => { lock (lockObj) globalSum += localSum; }
         );
         
         return Math.Sqrt(globalSum);
+        
+        static double ProcessChunk(int start, int end, double[] src)
+        {
+            var sumOfSquares = 0.0;
+            var vectorSize = Vector<double>.Count;
+            var i = start;
+
+            for (; i <= end - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<double>(src, i);
+                sumOfSquares += Vector.Dot(v, v);
+            }
+
+            for (; i < end; i++) sumOfSquares += src[i] * src[i];
+            
+            return sumOfSquares;
+        }
     }
 
     #endregion
