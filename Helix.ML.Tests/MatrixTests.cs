@@ -1003,4 +1003,203 @@ public class MatrixTests
         Assert.Equal([10.0, 40.0], tallDiag);
         Assert.Equal([10.0, 50.0], wideDiag);
     }
+    
+    [Fact]
+    public void Inverse_2x2Matrix_CalculatesCorrectly()
+    {
+        var m = new Matrix(new double[,] {
+            { 4, 7 },
+            { 2, 6 }
+        });
+
+        var inv = !m; // Using your shiny new ! operator
+        var identity = m * inv; // A * A^-1 should equal I
+        
+        Assert.True(identity.IsCloseTo(Matrix.Identity(2)));
+    }
+    
+    [Fact]
+    public void Inverse_3x3Matrix_CalculatesCorrectly()
+    {
+        var m = new Matrix(new double[,] {
+            { 1, 2, 3 },
+            { 0, 1, 4 },
+            { 5, 6, 0 }
+        });
+
+        var inv = m.Inverse();
+        var identity = m * inv;
+
+        Assert.True(identity.IsCloseTo(Matrix.Identity(3)));
+    }
+    
+    [Fact]
+    public void Inverse_4x4Matrix_CalculatesCorrectly()
+    {
+        var m = new Matrix(new double[,] {
+            { 1, 2, 3, 4 },
+            { 0, 1, 4, 11 },
+            { 5, 6, 0, 3 },
+            { 7, 8, 9, 12 }
+        });
+
+        var inv = m.Inverse();
+        var identity = m * inv;
+
+        Assert.True(identity.IsCloseTo(Matrix.Identity(4)));
+    }
+    
+    [Fact]
+    public void Inverse_SingularMatrix_ThrowsInvalidOperationException()
+    {
+        // Row 2 is just Row 1 multiplied by 2. This means the rows are linearly dependent, so det = 0.
+        var m = new Matrix(new double[,] {
+            { 1, 2 },
+            { 2, 4 }
+        });
+
+        Assert.Throws<InvalidOperationException>(() => m.Inverse());
+    }
+    
+    [Fact]
+    public void Inverse_WithPreComputedDeterminant_CalculatesCorrectly()
+    {
+        var m = new Matrix(new double[,] {
+            { 4, 7 },
+            { 2, 6 }
+        });
+
+        // We pre-calculate it (or already know it is 10)
+        double det = m.Determinant(); 
+
+        // Act: Pass it into the fast-lane overload
+        var inv = m.Inverse(knownDeterminant: det);
+        var identity = m * inv;
+        
+        // Assert it still perfectly folds space
+        Assert.True(identity.IsCloseTo(Matrix.Identity(2)));
+    }
+    
+    [Fact]
+    public void PseudoInverse_TallMatrix_CalculatesLeftInverse()
+    {
+        // Arrange: A 3x2 Tall Matrix
+        var tall = new Matrix(new double[,] {
+            { 1, 1 },
+            { 1, 2 },
+            { 1, 3 }
+        });
+
+        // Act
+        var pseudoInv = tall.PseudoInverse();
+        
+        // Assert: A * A^+ * A must equal A
+        var projection = tall * pseudoInv * tall;
+        Assert.True(projection.IsCloseTo(tall));
+    }
+    
+    [Fact]
+    public void PseudoInverse_WideMatrix_CalculatesRightInverse()
+    {
+        // Arrange: A 2x3 Wide Matrix
+        var wide = new Matrix(new double[,] {
+            { 1, 1, 1 },
+            { 1, 2, 3 }
+        });
+
+        // Act
+        var pseudoInv = wide.PseudoInverse();
+        
+        // Assert: A * A^+ * A must equal A
+        var projection = wide * pseudoInv * wide;
+        Assert.True(projection.IsCloseTo(wide));
+    }
+    
+    [Fact]
+    public void PseudoInverse_SquareMatrix_FallsBackToStandardInverse()
+    {
+        // Arrange: A standard 2x2 Square Matrix
+        var square = new Matrix(new double[,] {
+            { 4, 7 },
+            { 2, 6 }
+        });
+
+        // Act
+        var pseudoInv = square.PseudoInverse();
+        var standardInv = square.Inverse();
+
+        // Assert: For invertible square matrices, the Pseudoinverse is identical to the Inverse
+        Assert.True(pseudoInv.IsCloseTo(standardInv));
+    }
+    
+    [Fact]
+    public void Norm_L2_CalculatesEuclideanMagnitudeCorrectly()
+    {
+        // A standard 3-4-5 triangle represented as a vector
+        var v = new Matrix(1, 2, [ 3.0, -4.0 ]);
+        
+        double l2 = v.Norm(NormType.L2);
+        
+        // Sqrt(3^2 + (-4)^2) = Sqrt(9 + 16) = Sqrt(25) = 5.0
+        Assert.Equal(5.0, l2);
+    }
+    
+    [Fact]
+    public void Norm_L1_CalculatesManhattanMagnitudeCorrectly()
+    {
+        // A standard 3-4-5 triangle
+        var v = new Matrix(1, 2, [ 3.0, -4.0 ]);
+        
+        double l1 = v.Norm(NormType.L1);
+        
+        // Abs(3) + Abs(-4) = 3 + 4 = 7.0
+        Assert.Equal(7.0, l1);
+    }
+    
+    [Fact]
+    public void Norm_L2_Matrix_CalculatesFrobeniusNormCorrectly()
+    {
+        // For a 2D matrix, the L2 Norm is the Frobenius Norm
+        var m = new Matrix(new double[,] {
+            { 1.0, 2.0 },
+            { 3.0, 4.0 }
+        });
+
+        // L2 is the default if no enum is provided
+        double fNorm = m.Norm();
+
+        // Sqrt(1 + 4 + 9 + 16) = Sqrt(30) ≈ 5.4772
+        Assert.Equal(5.4772, fNorm, 4);
+    }
+    
+    [Fact]
+    public void Norm_L2_MassiveMatrix_UsesParallelReductionCorrectly()
+    {
+        // Arrange: 1000 x 200 = 200,000 elements. 
+        // This exceeds the 100,000 threshold and triggers the Parallel path.
+        var m = Matrix.Ones(1000, 200);
+
+        // Act
+        double l2 = m.Norm(NormType.L2);
+
+        // Assert
+        // The L2 norm of 200,000 ones is Sqrt(200,000)
+        double expected = System.Math.Sqrt(200_000);
+        Assert.Equal(expected, l2, 5); // Accurate to 5 decimal places
+    }
+    
+    [Fact]
+    public void Norm_L1_MassiveMatrix_UsesParallelReductionCorrectly()
+    {
+        // Arrange: 200,000 elements to trigger the Parallel path.
+        // We multiply by -2.0 to ensure the absolute value logic works in parallel.
+        var m = Matrix.Ones(1000, 200) * -2.0;
+
+        // Act
+        double l1 = m.Norm(NormType.L1);
+
+        // Assert
+        // The L1 norm is the sum of absolute values. 200,000 * |-2.0| = 400,000.
+        Assert.Equal(400_000.0, l1);
+    }
 }

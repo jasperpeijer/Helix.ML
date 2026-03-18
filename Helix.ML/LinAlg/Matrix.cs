@@ -412,6 +412,104 @@ public readonly struct Matrix
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Matrix operator &(Matrix top, Matrix bottom) => top.Concatenate(bottom);
+
+    /// <summary>
+    /// Calculates the Inverse analytically, utilizing a pre-computed determinant to save CPU cycles.
+    /// WARNING: Passing an incorrect determinant will result in a mathematically invalid inverse.
+    /// </summary>
+    public Matrix Inverse(double knownDeterminant, double tolerance = 1e-14)
+    {
+        if (!IsSquare)
+        {
+            throw new InvalidOperationException("Only square matrices can be inverted.");
+        }
+        
+        // --- THE O(1) FAST PATH ---
+        // If the matrix is orthogonal, the inverse is literally just the transpose!
+        if (IsOrthogonal(tolerance)) return this.T;
+
+        if (Math.Abs(knownDeterminant) < tolerance)
+        {
+            throw new InvalidOperationException("Matrix is singular (determinant is 0) and cannot be inverted.");
+        }
+        
+        if (Rows == 1) return new Matrix(1, 1, [1.0 / Data[0]]);
+
+        if (Rows == 2)
+        {
+            double invDet = 1.0 / knownDeterminant;
+            
+            return new Matrix(2, 2, [
+                Data[3] * invDet, -Data[1] * invDet,
+                -Data[2] * invDet, Data[0] * invDet
+            ]);
+        }
+
+        var cofactors = new Matrix(Rows, Cols);
+
+        for (var i = 0; i < Rows; i++)
+        {
+            for (var j = 0; j < Cols; j++)
+            {
+                var minor = GetMinor(i, j);
+                var minorDeterminant = minor.Determinant();
+
+                double sign = ((i + j) % 2 == 0) ? 1.0 : -1.0;
+                cofactors[i, j] = minorDeterminant * sign;
+            }
+        }
+
+        return cofactors.T / knownDeterminant;
+    }
+    
+    /// <summary>
+    /// Calculates the Inverse of the matrix analytically using the Adjugate/Cofactor method.
+    /// Computes the determinant automatically.
+    /// </summary>
+    public Matrix Inverse(double tolerance = 1e-14) => Inverse(Determinant(), tolerance);
+
+    /// <summary>
+    /// Syntactic sugar for Matrix Inverse (!A).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Matrix operator !(Matrix matrix) => matrix.Inverse();
+
+    /// <summary>
+    /// Calculates the Moore-Penrose Pseudoinverse.
+    /// Automatically handles Square, Tall (Overdetermined), and Wide (Underdetermined) matrices.
+    /// </summary>
+    /// TODO: Implement using SVD
+    public Matrix PseudoInverse(double tolerance = 1e-14)
+    {
+        if (IsSquare)
+        {
+            return this.Inverse();
+        }
+
+        try
+        {
+            // Left Inverse (Tall Matrix)
+            if (Rows > Cols)
+            {
+                var aTa = this.T * this;
+                return aTa.Inverse(tolerance) * this.T;
+            }
+            
+            // Right Inverse (Wide Matrix)
+            var aaT = this * this.T;
+            return this.T * aaT.Inverse(tolerance);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // THE ARCHITECTURAL FAIL-SAFE
+            // If the inner inverse throws a singular matrix exception, it means the data 
+            // has linearly dependent columns (multicollinearity).
+            throw new InvalidOperationException(
+                "Algebraic Pseudoinverse failed due to rank deficiency. " +
+                "TODO: Implement Singular Value Decomposition (SVD) for robust Moore-Penrose computation.", ex);
+        }
+
+    }
     
     #endregion
     
@@ -582,7 +680,7 @@ public readonly struct Matrix
     /// </summary>
     public double Trace(bool allowRectangular = false)
     {
-        if (!allowRectangular && Rows != Cols)
+        if (!allowRectangular && !IsSquare)
         {
             throw new InvalidOperationException("The Trace is only defined for square matrices.");
         }
@@ -637,7 +735,7 @@ public readonly struct Matrix
     /// </summary>
     public double Determinant()
     {
-        if (Rows != Cols)
+        if (!IsSquare)
         {
             throw new InvalidOperationException("The Determinant is strictly defined for square matrices.");
         }
@@ -692,7 +790,7 @@ public readonly struct Matrix
     /// </summary>
     public bool IsUpperTriangular(double tolerance = 1e-14)
     {
-        if (Rows != Cols) return false;
+        if (!IsSquare) return false;
 
         for (var i = 1; i < Rows; i++)
         {
@@ -710,7 +808,7 @@ public readonly struct Matrix
     /// </summary>
     public bool IsLowerTriangular(double tolerance = 1e-14)
     {
-        if (Rows != Cols) return false;
+        if (!IsSquare) return false;
 
         for (var i = 0; i < Rows - 1; i++)
         {
@@ -747,7 +845,7 @@ public readonly struct Matrix
 
         for (var i = 0; i < Rows; i++)
         {
-            for (var j = 0; j < Cols; j++)
+            for (var j = 0; j < i; j++)
             {
                 if (Math.Abs(this[i, j] - this[j, i]) > tolerance) return false;
             }
@@ -765,7 +863,7 @@ public readonly struct Matrix
 
         for (var i = 0; i < Rows; i++)
         {
-            for (var j = 0; j < Cols; j++)
+            for (var j = 0; j <= i; j++)
             {
                 if (Math.Abs(this[i, j] + this[j, i]) > tolerance) return false;
             }
@@ -802,8 +900,137 @@ public readonly struct Matrix
 
         return diag;
     }
-    
+
+    /// <summary>
+    /// Calculates the mathematical Norm (magnitude) of the matrix or vector.
+    /// </summary>
+    public double Norm(NormType normType = NormType.L2)
+    {
+        return normType switch
+        {
+            NormType.L1 => NormL1(),
+            NormType.L2 => NormL2(),
+            _ => throw new NotImplementedException($"Norm type {normType} is not supported.")
+        };
+    }
+
+    /// <summary>
+    /// Calculates the L1 Norm (Manhattan Magnitude) of the matrix/vector.
+    /// The sum of the absolute values of all elements.
+    /// </summary>
+    private double NormL1()
+    {
+        if (Data.Length < 100_000)
+        {
+            var sum = 0.0;
+            var vectorSize = Vector<double>.Count;
+            var i = 0;
+
+            var vOnes = new Vector<double>(1.0);
+
+            for (; i <= Data.Length - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<double>(Data, i);
+                var vAbs = Vector.Abs(v);
+                sum += Vector.Dot(v, vAbs);
+            }
+
+            for (; i < Data.Length; i++)
+            {
+                sum += Math.Abs(Data[i]);
+            }
+
+            return sum;
+        }
+
+        var globalSum = 0.0;
+        var lockObj = new object();
+        double[] data = Data;
+
+        Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, Data.Length), () => 0.0,
+            (range, loopState, localSum) =>
+            {
+                int vectorSize = Vector<double>.Count;
+                int i = range.Item1;
+                var vOnes = new Vector<double>(1.0);
+
+                for (; i <= range.Item2 - vectorSize; i += vectorSize)
+                {
+                    var v = new Vector<double>(data, i);
+                    localSum += Vector.Dot(Vector.Abs(v), vOnes);
+                }
+
+                for (; i < range.Item2; i++) localSum += Math.Abs(data[i]);
+
+                return localSum;
+            },
+            (localSum) => { lock (lockObj) globalSum += localSum; }
+        );
+
+        return globalSum;
+    }
+
+    /// <summary>
+    /// Calculates the L2 Norm (Euclidean Magnitude) of the matrix/vector.
+    /// Also known mathematically as the Frobenius Norm for 2D matrices.
+    /// </summary>
+    private double NormL2()
+    {
+        if (Data.Length < 100_000)
+        {
+            var sumOfSquares = 0.0;
+            var vectorSize = Vector<double>.Count;
+            var i = 0;
+
+            for (; i <= Data.Length - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<double>(Data, i);
+                sumOfSquares += Vector.Dot(v, v);
+            }
+
+            for (; i < Data.Length; i++)
+            {
+                sumOfSquares += Data[i] * Data[i];
+            }
+
+            return Math.Sqrt(sumOfSquares);
+        }
+        
+        // Multithread optimization
+        var globalSum = 0.0;
+        var lockObj = new object();
+        double[] currentData = Data;
+
+        Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, Data.Length), () => 0.0, (range, loopState, localSum) =>
+            {
+                int vectoeSize = Vector<double>.Count;
+                int i = range.Item1;
+
+                for (; i <= range.Item2 - vectoeSize; i += vectoeSize)
+                {
+                    var v = new Vector<double>(currentData, i);
+                    localSum += Vector.Dot(v, v);
+                }
+
+                for (; i < range.Item2; i++)
+                {
+                    localSum += currentData[i] * currentData[i];
+                }
+
+                return localSum;
+            }, 
+            (localSum) =>
+            {
+                lock (lockObj) globalSum += localSum;
+            }
+        );
+        
+        return Math.Sqrt(globalSum);
+    }
+
     #endregion
+    
+    #region Matrix Indexing & Slicing
     
     public double this[int row, int col]
     {
@@ -855,6 +1082,8 @@ public readonly struct Matrix
             }
         }
     }
+    
+    #endregion
 
     #region Matrix Comparison
     
@@ -916,4 +1145,16 @@ public readonly struct Matrix
     }
     
     #endregion
+}
+
+public enum NormType
+{
+    // L1 Family
+    L1 = 1,
+    Manhattan = 1,
+
+    // L2 Family
+    L2 = 2,
+    Euclidean = 2,
+    Frobenius = 2,
 }
