@@ -403,7 +403,7 @@ public readonly partial struct Matrix
             int vectorSize = Vector<double>.Count;
             int i = 0;
 
-            for (; i < thisData.Length - vectorSize; i += vectorSize)
+            for (; i <= thisData.Length - vectorSize; i += vectorSize)
             {
                 var va = new Vector<double>(thisData, i);
                 var vb = new Vector<double>(otherData, i);
@@ -429,7 +429,7 @@ public readonly partial struct Matrix
                 int vectorSize = Vector<double>.Count;
                 int i = range.Item1;
 
-                for (; i < range.Item2 - vectorSize; i += vectorSize)
+                for (; i <= range.Item2 - vectorSize; i += vectorSize)
                 {
                     var va = new Vector<double>(thisData, i);
                     var vb = new Vector<double>(otherData, i);
