@@ -15,20 +15,39 @@ public readonly partial struct Matrix
         double[] result = new double[m.Data.Length];
         int i = 0;
         int vectorSize = Vector<double>.Count;
+        var data = m.Data;
         
         // Broadcast the single scalar value into a full hardware vector
         var vScalar = new Vector<double>(scalar);
-        
-        for (; i < m.Data.Length - vectorSize; i += vectorSize)
-        {
-            var va = new Vector<double>(m.Data, i);
-            var vResult = va * vScalar;
-            vResult.CopyTo(result, i);
-        }
 
-        for (; i < m.Data.Length; i++)
+        if (data.Length < 100_000) {
+            for (; i < m.Data.Length - vectorSize; i += vectorSize)
+            {
+                var va = new Vector<double>(m.Data, i);
+                var vResult = va * vScalar;
+                vResult.CopyTo(result, i);
+            }
+
+            for (; i < m.Data.Length; i++)
+            {
+                result[i] = m.Data[i] * scalar;
+            }
+        }
+        else
         {
-            result[i] = m.Data[i] * scalar;
+            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, data.Length), range =>
+            {
+                int i = range.Item1;
+                int vectorSize = Vector<double>.Count;
+                var vScalar = new Vector<double>(scalar);
+                
+                for (; i <= range.Item2 - vectorSize; i += vectorSize)
+                {
+                    var va = new Vector<double>(data, i);
+                    (va * vScalar).CopyTo(result, i);
+                }
+                for (; i < range.Item2; i++) result[i] = data[i] * scalar;
+            });
         }
         
         return new Matrix(m.Shape, result);
@@ -49,17 +68,36 @@ public readonly partial struct Matrix
         var vectorSize = Vector<double>.Count;
         var vScalar = new Vector<double>(scalar);
         int i = 0;
+        var data = m.Data;
 
-        for (; i <= m.Data.Length - vectorSize; i += vectorSize)
-        {
-            var vA = new Vector<double>(m.Data, i);
-            var vRes = vA + vScalar;
-            vRes.CopyTo(result, i);
+        if (data.Length < 100_000) {
+            for (; i <= m.Data.Length - vectorSize; i += vectorSize)
+            {
+                var vA = new Vector<double>(m.Data, i);
+                var vRes = vA + vScalar;
+                vRes.CopyTo(result, i);
+            }
+
+            for (; i < m.Data.Length; i++)
+            {
+                result[i] = m.Data[i] + scalar;
+            }
         }
-
-        for (; i < m.Data.Length; i++)
+        else
         {
-            result[i] = m.Data[i] + scalar;
+            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, data.Length), range =>
+            {
+                int i = range.Item1;
+                int vectorSize = Vector<double>.Count;
+                var vScalar = new Vector<double>(scalar);
+
+                for (; i <= range.Item2 - vectorSize; i += vectorSize)
+                {
+                    var vA = new Vector<double>(data, i);
+                    (vA + vScalar).CopyTo(result, i);
+                }
+                for (; i < range.Item2; i++) result[i] = data[i] + scalar;
+            });
         }
         
         return new Matrix(m.Shape, result);
@@ -83,34 +121,44 @@ public readonly partial struct Matrix
         
         var result = new double[m1.Data.Length];
         var i = 0;
-        
-        // Vector<double>.Count dynamically checks the CPU at runtime to see 
-        // how many doubles it can process simultaneously (usually 4 or 8).
         var vectorSize = Vector<double>.Count;
-        
-        // The SIMD Loop: Process data in massive chunks
-        // We stop right before we run out of enough elements to fill a full vector
-        for (; i < m1.Data.Length - vectorSize; i += vectorSize)
-        {
-            // Load chunks from RAM into CPU registers
-            var va = new Vector<double>(m1.Data, i);
-            var vb = new Vector<double>(m2.Data, i);
+        var data1 = m1.Data;
+        var data2 = m2.Data;
 
-            // The hardware adds all 4 or 8 numbers in a single clock cycle
-            var vResult = va + vb;
-            
-            // Push the chunk back to RAM
-            vResult.CopyTo(result, i);
-        }
-        
-        // The Tail Loop: Catch the leftovers
-        // If our array has 10 elements and the CPU processes 4 at a time,
-        // elements 8 and 9 are left over. We process them normally.
-        for (; i < m1.Data.Length; i++)
+        if (data1.Length < 100_000)
         {
-            result[i] = m1.Data[i] + m2.Data[i];
+            for (; i < m1.Data.Length - vectorSize; i += vectorSize)
+            {
+                var va = new Vector<double>(m1.Data, i);
+                var vb = new Vector<double>(m2.Data, i);
+                var vResult = va + vb;
+
+                vResult.CopyTo(result, i);
+            }
+
+            for (; i < m1.Data.Length; i++) result[i] = m1.Data[i] + m2.Data[i];
         }
-        
+        else
+        {
+            Parallel.ForEach(
+                System.Collections.Concurrent.Partitioner.Create(0, data1.Length),
+                (range) =>
+                {
+                    int i = range.Item1;
+                    int vectorSize = Vector<double>.Count;
+
+                    for (; i <= range.Item2 - vectorSize; i += vectorSize)
+                    {
+                        var va = new Vector<double>(data1, i);
+                        var vb = new Vector<double>(data2, i);
+                        (va + vb).CopyTo(result, i);
+                    }
+
+                    for (; i < range.Item2; i++) result[i] = data1[i] + data2[i];
+                }
+            );
+        }
+
         return new Matrix(m1.Shape, result);
     }
 
@@ -188,32 +236,39 @@ public readonly partial struct Matrix
         
         var result = new double[m1.Data.Length];
         var i = 0;
-        
-        // Vector<double>.Count dynamically checks the CPU at runtime to see 
-        // how many doubles it can process simultaneously (usually 4 or 8).
         var vectorSize = Vector<double>.Count;
+        var data1 = m1.Data;
+        var data2 = m2.Data;
         
-        // The SIMD Loop: Process data in massive chunks
-        // We stop right before we run out of enough elements to fill a full vector
-        for (; i < m1.Data.Length - vectorSize; i += vectorSize)
-        {
-            // Load chunks from RAM into CPU registers
-            var va = new Vector<double>(m1.Data, i);
-            var vb = new Vector<double>(m2.Data, i);
+        if (data1.Length < 100_000) {
+            for (; i < m1.Data.Length - vectorSize; i += vectorSize)
+            {
+                var va = new Vector<double>(m1.Data, i);
+                var vb = new Vector<double>(m2.Data, i);
+                var vResult = va - vb;
 
-            // The hardware adds all 4 or 8 numbers in a single clock cycle
-            var vResult = va - vb;
-            
-            // Push the chunk back to RAM
-            vResult.CopyTo(result, i);
+                vResult.CopyTo(result, i);
+            }
+
+            for (; i < m1.Data.Length; i++)
+            {
+                result[i] = m1.Data[i] - m2.Data[i];
+            }
         }
-        
-        // The Tail Loop: Catch the leftovers
-        // If our array has 10 elements and the CPU processes 4 at a time,
-        // elements 8 and 9 are left over. We process them normally.
-        for (; i < m1.Data.Length; i++)
+        else
         {
-            result[i] = m1.Data[i] - m2.Data[i];
+            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, data1.Length), range =>
+            {
+                int i = range.Item1;
+                int vectorSize = Vector<double>.Count;
+                for (; i <= range.Item2 - vectorSize; i += vectorSize)
+                {
+                    var va = new Vector<double>(data1, i);
+                    var vb = new Vector<double>(data2, i);
+                    (va - vb).CopyTo(result, i);
+                }
+                for (; i < range.Item2; i++) result[i] = data1[i] - data2[i];
+            });
         }
         
         return new Matrix(m1.Shape, result);
