@@ -1281,4 +1281,49 @@ public class MatrixTests
         // Act & Assert
         Assert.Throws<ArgumentException>(() => v1.DotProduct(v2));
     }
+    
+    [Fact]
+    public void OperatorAdd_MassiveMatrices_UsesParallelPathCorrectly()
+    {
+        // Arrange: 200,000 elements triggers the parallel path
+        var m1 = Matrix.Ones(1000, 200) * 2.0; // Matrix of 2.0s
+        var m2 = Matrix.Ones(1000, 200) * 3.0; // Matrix of 3.0s
+
+        // Act
+        var result = m1 + m2;
+
+        // Assert: First, Middle, and Last elements should all be exactly 5.0
+        Assert.Equal(5.0, result.Data[0]);
+        Assert.Equal(5.0, result.Data[100_000]);
+        Assert.Equal(5.0, result.Data[^1]);
+    }
+    
+    [Fact]
+    public void OperatorSubtract_MassiveMatrices_UsesParallelPathCorrectly()
+    {
+        // Arrange
+        var m1 = Matrix.Ones(1000, 200) * 10.0; 
+        var m2 = Matrix.Ones(1000, 200) * 4.0; 
+
+        // Act
+        var result = m1 - m2;
+
+        // Assert
+        Assert.Equal(6.0, result.Data[0]);
+        Assert.Equal(6.0, result.Data[^1]);
+    }
+    
+    [Fact]
+    public void OperatorMultiplyScalar_MassiveMatrices_UsesParallelPathCorrectly()
+    {
+        // Arrange
+        var m = Matrix.Ones(1000, 200) * 5.0; 
+
+        // Act
+        var result = m * 3.0;
+
+        // Assert
+        Assert.Equal(15.0, result.Data[0]);
+        Assert.Equal(15.0, result.Data[^1]);
+    }
 }

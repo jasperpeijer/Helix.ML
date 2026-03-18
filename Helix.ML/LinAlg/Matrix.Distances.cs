@@ -22,6 +22,6 @@ public readonly partial struct Matrix
 
         if (normA == 0.0 || normB == 0.0) return 0.0;
         
-        return dotProduct / normA * normB;
+        return dotProduct / (normA * normB);
     }
 }

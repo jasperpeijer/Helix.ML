@@ -427,16 +427,16 @@ public readonly partial struct Matrix
             (range, loopState, localSum) =>
             {
                 int vectorSize = Vector<double>.Count;
-                int i = 0;
+                int i = range.Item1;
 
-                for (; i < thisData.Length - vectorSize; i += vectorSize)
+                for (; i < range.Item2 - vectorSize; i += vectorSize)
                 {
                     var va = new Vector<double>(thisData, i);
                     var vb = new Vector<double>(otherData, i);
                     localSum += Vector.Dot(va, vb);
                 }
 
-                for (; i < thisData.Length; i++)
+                for (; i < range.Item2; i++)
                 {
                     localSum += thisData[i] * otherData[i];
                 }
