@@ -153,12 +153,15 @@ public readonly partial struct Matrix
 
     /// <summary>
     /// Performs PLU Decomposition (Partial Pivoting Gaussian Elimination).
-    /// Factors a matrix into P * A = L * U, ensuring numerical stability and zero-divide safety.
+    /// Factors a matrix into P * A = L * U. 
+    /// Gracefully handles singular matrices and utilizes multithreading for massive datasets.
     /// </summary>
-    /// <returns>A tuple containing (L, U, Swaps).</returns>
     // ReSharper disable once InconsistentNaming
-    public (Matrix L, Matrix U, int Swaps) PLUDecomposition()
+    public (int[] P, Matrix L, Matrix U, int Swaps) PLUDecomposition(double tolerance = 1e-14)
     {
+        // Not fully sure how this algorithm works, but it's a computed version
+        // of the Gaussian elimination method for PLU decomposition.
+        
         if (!IsSquare)
             throw new InvalidOperationException("LU Decomposition is only defined for square matrices.");
 
@@ -170,6 +173,9 @@ public readonly partial struct Matrix
         Array.Copy(Data, uData, Data.Length);
         var u = new Matrix(n, n, uData);
         var l = Matrix.Identity(n);
+
+        var p = new int[n];
+        for (var i = 0; i < n; i++) p[i] = i;
 
         for (var i = 0; i < n; i++)
         {
@@ -184,9 +190,8 @@ public readonly partial struct Matrix
                     pivotRow = k;
                 }
             }
-            
-            if (maxVal == 0.0)
-                throw new InvalidOperationException("Matrix is singular (Determinant is 0). Cannot be decomposed.");
+
+            if (maxVal < tolerance) continue;
 
             if (pivotRow != i)
             {
@@ -200,22 +205,43 @@ public readonly partial struct Matrix
                     (l[i, col], l[pivotRow, col]) = (l[pivotRow, col], l[i, col]);
                 }
 
+                (p[i], p[pivotRow]) = (p[pivotRow], p[i]);
+
                 swaps++;
             }
+            
+            // Multithread Gaussian Elimination
+            var remainingRows = n - (i + 1);
 
-            for (var k = i + 1; k < n; k++)
+            if (remainingRows > 128)
             {
-                var factor = u[k, i] / u[i, i];
-                l[k, i] = factor;
-
-                for (var j = i; j < n; j++)
+                Parallel.For(i + 1, n, k =>
                 {
-                    u[k, j] -= factor * u[i, j];
+                    var factor = u[k, i] / u[i, i];
+                    l[k, i] = factor;
+
+                    for (var j = i; j < n; j++)
+                    {
+                        u[k, j] -= factor * u[i, j];
+                    }
+                });
+            }
+            else
+            {
+                for (var k = i + 1; k < n; k++)
+                {
+                    var factor = u[k, i] / u[i, i];
+                    l[k, i] = factor;
+
+                    for (var j = i; j < n; j++)
+                    {
+                        u[k, j] -= factor * u[i, j];
+                    }
                 }
             }
         }
 
-        return (l, u, swaps);
+        return (p, l, u, swaps);
     }
     
     #endregion Solvers

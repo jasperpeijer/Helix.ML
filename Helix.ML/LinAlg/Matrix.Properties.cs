@@ -78,7 +78,7 @@ public readonly partial struct Matrix
         
         if (Rows == 2) return (Data[0] * Data[3]) - (Data[1] * Data[2]);
 
-        var (_, u, swaps) = PLUDecomposition();
+        var (_, _, u, swaps) = PLUDecomposition();
         var determinant = 1.0;
 
         for (var i = 0; i < Rows; i++)

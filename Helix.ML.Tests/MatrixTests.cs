@@ -1442,4 +1442,61 @@ public class MatrixTests
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() => a.LUDecomposition());
     }
+    
+    [Fact]
+    public void Determinant_LinearlyDependentRows_ReturnsZero()
+    {
+        // Arrange: Row 2 is exactly Row 1 multiplied by 2. This matrix is singular.
+        var a = new Matrix(new double[,] {
+            { 1.0, 2.0, 3.0 },
+            { 2.0, 4.0, 6.0 }, 
+            { 7.0, 8.0, 9.0 }
+        });
+
+        // Act
+        var det = a.Determinant();
+
+        // Assert: Determinant should be exactly 0.0
+        Assert.Equal(0.0, det, 5); // Using 5 decimal places of precision
+    }
+    
+    [Fact]
+    public void PLUDecomposition_MassiveMatrix_TriggersParallelBulldozerAndDecomposesProperly()
+    {
+        // Arrange: Create a 200x200 matrix to cross the 128 remainingRows threshold
+        var size = 200;
+        var data = new double[size, size];
+        var rand = new Random(42); // Fixed seed for reproducibility
+
+        for (var i = 0; i < size; i++)
+        {
+            for (var j = 0; j < size; j++)
+            {
+                data[i, j] = rand.NextDouble() * 10.0;
+            }
+            // Make the matrix "diagonally dominant" to ensure it is highly stable
+            data[i, i] += 100.0; 
+        }
+
+        var a = new Matrix(data);
+
+        // Act: This will heavily utilize the Parallel.For loop
+        var (p, l, u, _) = a.PLUDecomposition();
+        
+        var reconstructed = l * u;
+
+        // Apply the permutation tracker P to our original matrix A
+        // Because PLU guarantees P * A = L * U
+        var permutedA = new Matrix(size, size);
+        for (var i = 0; i < size; i++)
+        {
+            for (var j = 0; j < size; j++)
+            {
+                permutedA[i, j] = a[p[i], j];
+            }
+        }
+
+        // Assert: L * U must perfectly match the Permuted A
+        Assert.True(reconstructed.IsCloseTo(permutedA, 1e-8));
+    }
 }
