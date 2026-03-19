@@ -243,6 +243,64 @@ public readonly partial struct Matrix
 
         return (p, l, u, swaps);
     }
+
+    /// <summary>
+    /// Solves a system of linear equations (Ax = b) using PLU Decomposition.
+    /// Can solve for a single vector or multiple vectors simultaneously.
+    /// </summary>
+    public Matrix Solve(Matrix b)
+    {
+        if (!IsSquare)
+            throw new InvalidOperationException("Matrix A must be square to solve Ax=b.");
+        
+        if (Rows != b.Rows)
+            throw new ArgumentException($"The number of rows in b ({b.Rows}) must match A ({Rows}).");
+        
+        var (p, l, u, _) = PLUDecomposition();
+
+        var pb = new Matrix(Rows, b.Cols);
+
+        for (var i = 0; i < Rows; i++)
+        {
+            for (var j = 0; j < b.Cols; j++)
+            {
+                pb[i, j] = b[p[i], j];
+            }
+        }
+
+        var y = new Matrix(Rows, b.Cols);
+
+        for (var i = 0; i < Rows; i++)
+        {
+            for (var j = 0; j < b.Cols; j++)
+            {
+                var sum = 0.0;
+                
+                for (var k = 0; k < i; k++) sum += l[i, k] * y[k, j];
+                
+                y[i, j] = pb[i, j] - sum;
+            }
+        }
+        
+        var x = new Matrix(Rows, b.Cols);
+
+        for (var i = Rows - 1; i >= 0; i--)
+        {
+            for (var j = 0; j < b.Cols; j++)
+            {
+                var sum = 0.0;
+                
+                for (var k = i + 1; k < Rows; k++) sum += u[i, k] * x[k, j];
+                
+                if (Math.Abs(u[i, i]) < 1e-14) 
+                    throw new InvalidOperationException("Matrix is singular and cannot be solved.");
+                
+                x[i, j] = (y[i, j] - sum) / u[i, i];
+            }
+        }
+
+        return x;
+    }
     
     #endregion Solvers
 }

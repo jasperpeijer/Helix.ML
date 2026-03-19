@@ -1499,4 +1499,108 @@ public class MatrixTests
         // Assert: L * U must perfectly match the Permuted A
         Assert.True(reconstructed.IsCloseTo(permutedA, 1e-8));
     }
+    
+    [Fact]
+    public void PLUDecomposition_StandardMatrix_DecomposesAndTracksPermutations()
+    {
+        // Arrange: A matrix that will definitely require row swaps
+        // Row 0 has a small diagonal (1.0), but Row 2 has a large number in that column (7.0)
+        var a = new Matrix(3, 3, [
+            1.0, 2.0, 3.0,
+            4.0, 5.0, 6.0,
+            7.0, 8.0, 0.0
+        ]);
+
+        // Act
+        var (p, l, u, swaps) = a.PLUDecomposition();
+        var reconstructed = l * u;
+
+        // Manually apply the P array to our original matrix A
+        var permutedA = new Matrix(3, 3);
+        for (var i = 0; i < 3; i++)
+        {
+            for (var j = 0; j < 3; j++) permutedA[i, j] = a[p[i], j];
+        }
+
+        // Assert
+        Assert.True(l.IsLowerTriangular());
+        Assert.True(u.IsUpperTriangular());
+        Assert.True(swaps > 0); // We guarantee at least one swap happened
+        Assert.True(reconstructed.IsCloseTo(permutedA)); // P * A == L * U
+    }
+    
+    [Fact]
+    public void PLUDecomposition_SingularMatrix_DoesNotCrashAndYieldsZeroDeterminant()
+    {
+        // Arrange: Row 2 is exactly Row 1 multiplied by 2. 
+        var a = new Matrix(3, 3, [
+            1.0, 2.0, 3.0,
+            2.0, 4.0, 6.0,
+            7.0, 8.0, 9.0
+        ]);
+
+        // Act
+        // It shouldn't throw an InvalidOperationException anymore
+        var det = a.Determinant(); 
+
+        // Assert
+        Assert.Equal(0.0, det, 5);
+    }
+    
+    [Fact]
+    public void Solve_ValidSystemOfEquations_FindsCorrectVectorX()
+    {
+        // Arrange: A 3x3 system of equations
+        // 2x +  y +  z = 8
+        // -x +  y -  z = -3
+        //  x + 2y + 3z = 8
+        var a = new Matrix(3, 3, [
+            2.0, 1.0, 1.0,
+            -1.0, 1.0, -1.0,
+            1.0, 2.0, 3.0
+        ]);
+
+        // CORRECTED TARGETS
+        var b = new Matrix(3, 1, [8.0, -3.0, 8.0]);
+
+        // Act
+        var x = a.Solve(b);
+
+        // Assert: Now the answers actually equal x=3, y=1, z=1
+        Assert.Equal(3.0, x[0, 0], 5);
+        Assert.Equal(1.0, x[1, 0], 5);
+        Assert.Equal(1.0, x[2, 0], 5);
+    }
+
+    [Fact]
+    public void Solve_MultipleRightHandSides_SolvesAllSimultaneously()
+    {
+        // Arrange: 
+        var a = new Matrix(2, 2, [
+            4.0, 3.0,
+            6.0, 3.0
+        ]);
+
+        // We can pass a 2x2 target matrix to solve two different systems at once!
+        var b = new Matrix(2, 2, [
+            10.0, 1.0,
+            12.0, 0.0
+        ]);
+
+        // Act
+        var x = a.Solve(b);
+
+        // Assert: Verify that A * X reconstructed perfectly equals B
+        var reconstructedB = a * x;
+        Assert.True(reconstructedB.IsCloseTo(b));
+    }
+
+    [Fact]
+    public void Solve_DimensionMismatch_ThrowsArgumentException()
+    {
+        var a = Matrix.Identity(3);
+        var b = new Matrix(4, 1); // 4 rows instead of 3
+
+        Assert.Throws<ArgumentException>(() => a.Solve(b));
+    }
 }
