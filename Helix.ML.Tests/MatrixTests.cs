@@ -1038,8 +1038,8 @@ public class MatrixTests
     {
         var m = new Matrix(new double[,] {
             { 1, 2, 3, 4 },
-            { 0, 1, 4, 11 },
-            { 5, 6, 0, 3 },
+            { 3, 3, 4, 11 },
+            { 5, 6, 2, 3 },
             { 7, 8, 9, 12 }
         });
 
@@ -1392,5 +1392,54 @@ public class MatrixTests
 
         Assert.Throws<ArgumentException>(() => m.BroadcastAdd(invalidBias));
         Assert.Throws<ArgumentException>(() => m.BroadcastAdd(invalidShape));
+    }
+    
+    [Fact]
+    public void LUDecomposition_ValidSquareMatrix_DecomposesProperly()
+    {
+        // Arrange: Our standard 3x3 test matrix
+        var a = new Matrix(new double[,] {
+            {  2.0, -1.0, -2.0 },
+            { -4.0,  6.0,  3.0 },
+            { -4.0, -2.0,  8.0 }
+        });
+
+        // Act
+        var (l, u) = a.LUDecomposition();
+        var reconstructed = l * u;
+
+        // Assert
+        Assert.True(l.IsLowerTriangular());
+        Assert.Equal(1.0, l[0, 0]);
+        Assert.Equal(-2.0, l[1, 0]);
+        Assert.Equal(1.0, l[1, 1]);
+        Assert.Equal(-2.0, l[2, 0]);
+        Assert.Equal(-1.0, l[2, 1]);
+        Assert.Equal(1.0, l[2, 2]);
+        
+        Assert.True(u.IsUpperTriangular());
+        Assert.Equal(2.0, u[0, 0]);
+        Assert.Equal(-1.0, u[0, 1]);
+        Assert.Equal(-2.0, u[0, 2]);
+        Assert.Equal(4.0, u[1, 1]);
+        Assert.Equal(-1.0, u[1, 2]);
+        Assert.Equal(3.0, u[2, 2]);
+
+        // L * U perfectly reconstructs the original matrix A
+        Assert.True(reconstructed.IsCloseTo(a));
+    }
+    
+    [Fact]
+    public void LUDecomposition_ZeroPivot_ThrowsInvalidOperationException()
+    {
+        // Arrange: A matrix with a 0 in the top-left corner.
+        // This will instantly crash the standard Doolittle algorithm because it divides by u[0,0].
+        var a = new Matrix(new double[,] {
+            { 0.0, 1.0 },
+            { 1.0, 0.0 }
+        });
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => a.LUDecomposition());
     }
 }

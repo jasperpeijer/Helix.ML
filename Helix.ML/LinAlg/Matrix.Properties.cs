@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace Helix.ML.LinAlg;
 
@@ -53,9 +54,7 @@ public readonly partial struct Matrix
     }
 
     /// <summary>
-    /// Calculates the Determinant of a square matrix using Laplace Expansion,
-    /// with an O(N) fast-path for triangular matrices.
-    /// Warning: This runs in O(N!) time. Do not use on massive matrices.
+    /// Calculates the determinant of the matrix in O(N^3) time using LU Decomposition.
     /// </summary>
     public double Determinant()
     {
@@ -79,23 +78,12 @@ public readonly partial struct Matrix
         
         if (Rows == 2) return (Data[0] * Data[3]) - (Data[1] * Data[2]);
 
-        var determinant = 0.0;
-        var sign = 1;
+        var (_, u) = LUDecomposition();
+        var determinant = 1.0;
 
-        for (var j = 0; j < Cols; j++)
+        for (int i = 0; i < Rows; i++)
         {
-            var element = this[0, j];
-            
-            // HUGE OPTIMIZATION: If the element is 0.0, anything multiplied by it is 0.
-            // We can skip the entire recursive calculation for this branch!
-            if (element != 0.0)
-            {
-                var minor = GetMinor(0, j);
-                determinant += sign * element * minor.Determinant();
-            }
-            
-            // Alternate signs (+, -, +, -)
-            sign *= -1;
+            determinant *= u[i, i];
         }
 
         return determinant;

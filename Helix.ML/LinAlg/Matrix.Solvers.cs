@@ -96,6 +96,60 @@ public readonly partial struct Matrix
         }
 
     }
+
+    /// <summary>
+    /// Performs LU Decomposition (Doolittle Algorithm) to factor a square matrix into 
+    /// a Lower triangular matrix (L) and an Upper triangular matrix (U), such that A = L * U.
+    /// </summary>
+    /// <returns>A tuple containing (L, U).</returns>
+    // ReSharper disable once InconsistentNaming
+    public (Matrix L, Matrix U) LUDecomposition()
+    {
+        // Not fully sure how this algorithm works, but it's a computed version
+        // of Doolittle's method for LU decomposition.
+        if (!IsSquare) 
+            throw new InvalidOperationException("LU Decomposition is only defined for square matrices.");
+
+        var n = Rows;
+        var l = Identity(n);
+        var u = Zeros(n, n);
+
+        for (var i = 0; i < n; i++)
+        {
+            for (var k = i; k < n; k++)
+            {
+                var sum = 0.0;
+
+                for (var j = 0; j < i; j++)
+                {
+                    sum += l[i, j] * u[j, k];
+                }
+                
+                u[i, k] = this[i, k] - sum;
+            }
+
+            for (var k = i + 1; k < n; k++)
+            {
+                var sum = 0.0;
+
+                for (var j = 0; j < i; j++)
+                {
+                    sum += l[k, j] * u[j, i];
+                }
+
+                if (u[i, i] == 0.0)
+                {
+                    throw new InvalidOperationException(
+                        "Matrix cannot be LU decomposed without row swaps. " +
+                        "A zero pivot was encountered. TODO: Implement PLU (Partial Pivoting).");
+                }
+                
+                l[k, i] = (this[k, i] - sum) / u[i, i];
+            }
+        }
+
+        return (l, u);
+    }
     
     #endregion Solvers
 }
