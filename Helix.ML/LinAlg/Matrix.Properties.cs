@@ -54,7 +54,7 @@ public readonly partial struct Matrix
     }
 
     /// <summary>
-    /// Calculates the determinant of the matrix in O(N^3) time using LU Decomposition.
+    /// Calculates the determinant of the matrix in O(N^3) time using PLU Decomposition.
     /// </summary>
     public double Determinant()
     {
@@ -65,11 +65,11 @@ public readonly partial struct Matrix
         // If the matrix is triangular or diagonal, the determinant is just the product of the main diagonal!
         if (IsUpperTriangular() || IsLowerTriangular())
         {
-            var det = 1.0;
+            var detFast = 1.0;
 
-            for (var i = 0; i < Rows; i++) det *= this[i, i];
+            for (var i = 0; i < Rows; i++) detFast *= this[i, i];
 
-            return det;
+            return detFast;
         }
 
         if (Rows % 2 != 0 && IsAntiSymmetric()) return 0.0;
@@ -78,15 +78,15 @@ public readonly partial struct Matrix
         
         if (Rows == 2) return (Data[0] * Data[3]) - (Data[1] * Data[2]);
 
-        var (_, u) = LUDecomposition();
+        var (_, u, swaps) = PLUDecomposition();
         var determinant = 1.0;
 
-        for (int i = 0; i < Rows; i++)
+        for (var i = 0; i < Rows; i++)
         {
             determinant *= u[i, i];
         }
 
-        return determinant;
+        return (swaps % 2 == 0) ? determinant : -determinant;
     }
 
     /// <summary>

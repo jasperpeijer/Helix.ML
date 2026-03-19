@@ -150,6 +150,73 @@ public readonly partial struct Matrix
 
         return (l, u);
     }
+
+    /// <summary>
+    /// Performs PLU Decomposition (Partial Pivoting Gaussian Elimination).
+    /// Factors a matrix into P * A = L * U, ensuring numerical stability and zero-divide safety.
+    /// </summary>
+    /// <returns>A tuple containing (L, U, Swaps).</returns>
+    // ReSharper disable once InconsistentNaming
+    public (Matrix L, Matrix U, int Swaps) PLUDecomposition()
+    {
+        if (!IsSquare)
+            throw new InvalidOperationException("LU Decomposition is only defined for square matrices.");
+
+        var n = Rows;
+        var swaps = 0;
+        
+        // U starts as a direct clone of A. L starts as an Identity matrix.
+        var uData = new double[Data.Length];
+        Array.Copy(Data, uData, Data.Length);
+        var u = new Matrix(n, n, uData);
+        var l = Matrix.Identity(n);
+
+        for (var i = 0; i < n; i++)
+        {
+            var pivotRow = i;
+            var maxVal = Math.Abs(u[i, i]);
+
+            for (var k = i + 1; k < n; k++)
+            {
+                if (Math.Abs(u[k, i]) > maxVal)
+                {
+                    maxVal = Math.Abs(u[k, i]);
+                    pivotRow = k;
+                }
+            }
+            
+            if (maxVal == 0.0)
+                throw new InvalidOperationException("Matrix is singular (Determinant is 0). Cannot be decomposed.");
+
+            if (pivotRow != i)
+            {
+                for (var col = 0; col < n; col++)
+                {
+                    (u[i, col], u[pivotRow, col]) = (u[pivotRow, col], u[i, col]);
+                }
+
+                for (var col = 0; col < i; col++)
+                {
+                    (l[i, col], l[pivotRow, col]) = (l[pivotRow, col], l[i, col]);
+                }
+
+                swaps++;
+            }
+
+            for (var k = i + 1; k < n; k++)
+            {
+                var factor = u[k, i] / u[i, i];
+                l[k, i] = factor;
+
+                for (var j = i; j < n; j++)
+                {
+                    u[k, j] -= factor * u[i, j];
+                }
+            }
+        }
+
+        return (l, u, swaps);
+    }
     
     #endregion Solvers
 }
