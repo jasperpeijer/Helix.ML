@@ -94,11 +94,11 @@ public readonly partial struct Matrix
     /// </summary>
     public bool IsUpperTriangular(double tolerance = 1e-14)
     {
-        if (!IsSquare) return false;
-
         for (var i = 1; i < Rows; i++)
         {
-            for (var j = 0; j < i; j++)
+            var maxCol = Math.Min(i, Cols);
+            
+            for (var j = 0; j < maxCol; j++)
             {
                 if (Math.Abs(this[i, j]) > tolerance) return false;
             }
@@ -112,8 +112,6 @@ public readonly partial struct Matrix
     /// </summary>
     public bool IsLowerTriangular(double tolerance = 1e-14)
     {
-        if (!IsSquare) return false;
-
         for (var i = 0; i < Rows - 1; i++)
         {
             for (var j = i + 1; j < Cols; j++)

@@ -411,6 +411,17 @@ public readonly partial struct Matrix
 
         return result;
     }
+
+    /// <summary>
+    /// Returns true if the matrix is singular (determinant is 0) within the given tolerance.
+    /// Singular matrices cannot be inverted and have no unique solution for Ax=b.
+    /// </summary>
+    public bool IsSingular(double tolerance = 1e-14)
+    {
+        if (!IsSquare) return true;
+
+        return Math.Abs(Determinant()) < tolerance;
+    }
     
     #endregion
 }

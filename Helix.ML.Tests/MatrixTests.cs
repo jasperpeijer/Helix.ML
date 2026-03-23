@@ -1603,4 +1603,148 @@ public class MatrixTests
 
         Assert.Throws<ArgumentException>(() => a.Solve(b));
     }
+    
+    [Fact]
+    public void QRDecomposition_SquareMatrix_DecomposesCorrectly()
+    {
+        // Arrange: A standard 3x3 matrix
+        var a = new Matrix(3, 3, [
+            12.0, -51.0,  4.0,
+            6.0, 167.0, -68.0,
+            -4.0,  24.0, -41.0
+        ]);
+
+        // Act
+        var (q, r) = a.QRDecomposition();
+        
+        var reconstructed = q * r;
+        var qtq = q.T * q; // Multiplying an orthogonal matrix by its transpose yields Identity
+
+        // Assert
+        Assert.True(r.IsUpperTriangular());
+        Assert.True(reconstructed.IsCloseTo(a, 1e-8)); // Q * R == A
+        Assert.True(qtq.IsCloseTo(Matrix.Identity(3), 1e-8)); // Q^T * Q == I
+    }
+    
+    [Fact]
+    public void QRDecomposition_TallMatrix_DecomposesCorrectly()
+    {
+        // Arrange: QR works on rectangular matrices too! (3 rows, 2 columns)
+        var a = new Matrix(3, 2, [
+            1.0, 2.0,
+            0.0, 1.0,
+            1.0, 0.0
+        ]);
+
+        // Act
+        var (q, r) = a.QRDecomposition();
+        
+        var reconstructed = q * r;
+        var qtq = q.T * q; 
+
+        // Assert
+        Assert.True(r.IsUpperTriangular());
+        Assert.True(reconstructed.IsCloseTo(a, 1e-8));
+        Assert.True(qtq.IsCloseTo(Matrix.Identity(3), 1e-8));
+    }
+    
+    [Fact]
+    public void QRDecomposition_LinearlyDependentColumns_HandlesGracefully()
+    {
+        // Arrange: Column 1 is exactly Column 0 multiplied by 2. 
+        var a = new Matrix(3, 2, [
+            1.0, 2.0,
+            2.0, 4.0,
+            3.0, 6.0
+        ]);
+
+        // Act
+        var (q, r) = a.QRDecomposition();
+        var reconstructed = q * r;
+
+        // Assert: The engine should decompose it perfectly without NaN corruption
+        Assert.True(reconstructed.IsCloseTo(a, 1e-8));
+    }
+    
+    [Fact]
+    public void Eigenvalues_SymmetricMatrix_FindsCorrectValues()
+    {
+        // Arrange: A symmetric matrix
+        var a = new Matrix(3, 3, [
+            2.0, -1.0, 0.0,
+            -1.0,  2.0, -1.0,
+            0.0, -1.0,  2.0
+        ]);
+
+        // Act
+        var eigenvalues = a.Eigenvalues();
+
+        // Assert
+        // The analytical eigenvalues for this specific matrix are:
+        // 2 + sqrt(2), 2, and 2 - sqrt(2)
+        // (approx 3.414, 2.0, 0.585)
+        
+        Assert.Contains(eigenvalues, v => Math.Abs(v - 3.41421356) < 1e-5);
+        Assert.Contains(eigenvalues, v => Math.Abs(v - 2.0) < 1e-5);
+        Assert.Contains(eigenvalues, v => Math.Abs(v - 0.58578643) < 1e-5);
+    }
+    
+    [Fact]
+    public void EigenDecomposition_SymmetricMatrix_ReconstructsPerfectly()
+    {
+        // Arrange
+        var a = new Matrix(3, 3, [
+            2.0, -1.0, 0.0,
+            -1.0,  2.0, -1.0,
+            0.0, -1.0,  2.0
+        ]);
+
+        // Act
+        var (q, eigenvalues) = a.EigenDecomposition();
+        
+        // Build the Lambda matrix (diagonal matrix of eigenvalues)
+        var lambda = Matrix.Zeros(3, 3);
+        for (var i = 0; i < 3; i++) lambda[i, i] = eigenvalues[i];
+
+        // Assert: A = Q * Lambda * Q^T
+        var reconstructed = q * lambda * q.T;
+        Assert.True(reconstructed.IsCloseTo(a, 1e-5));
+    }
+    
+    [Fact]
+    public void SVD_TallMatrix_ReconstructsPerfectly()
+    {
+        // Arrange: A standard 3x2 matrix
+        var a = new Matrix(3, 2, [
+            1.0, 2.0,
+            3.0, 4.0,
+            5.0, 6.0
+        ]);
+
+        // Act
+        var (u, s, v) = a.SVD();
+
+        // Assert: A = U * S * V^T
+        var reconstructed = u * s * v.T;
+        Assert.True(reconstructed.IsCloseTo(a, 1e-5));
+    }
+    
+    [Fact]
+    public void PseudoInverse_LinearlyDependentMatrix_SucceedsViaSVD()
+    {
+        // Arrange: Row 2 is exactly Row 1 multiplied by 2. (Rank Deficient)
+        // The old algebraic PseudoInverse threw an InvalidOperationException here.
+        var brokenData = new Matrix(3, 2, [
+            1.0, 2.0,
+            2.0, 4.0,
+            3.0, 6.0
+        ]);
+
+        // Act: The SVD engine will quietly filter out the bad dimension and solve it
+        var pseudoInv = brokenData.PseudoInverse();
+
+        // Assert: The geometric definition of a Moore-Penrose inverse is A * A^+ * A = A
+        var projection = brokenData * pseudoInv * brokenData;
+        Assert.True(projection.IsCloseTo(brokenData, 1e-5));
+    }
 }
