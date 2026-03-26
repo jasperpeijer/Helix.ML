@@ -79,61 +79,6 @@ public readonly partial struct Matrix
     public Matrix((int rows, int cols) shape, double[] data) : this(shape.rows, shape.cols, data) {}
     
     #endregion
-    
-    #region Matrix Indexing & Slicing
-    
-    public double this[int row, int col]
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Data[(row * Cols) + col];
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        set => Data[(row * Cols) + col] = value;
-    }
-
-    /// <summary>
-    /// Extracts a sub-matrix using C# Range syntax (e.g., matrix[0..2, 1..^1]).
-    /// </summary>
-    public Matrix this[Range rowRange, Range colRange]
-    {
-        get
-        {
-            var (rowOffset, rowLength) = rowRange.GetOffsetAndLength(Rows);
-            var (colOffset, colLength) = colRange.GetOffsetAndLength(Cols);
-            
-            var result = new Matrix(rowLength, colLength);
-
-            for (var i = 0; i < rowLength; i++)
-            {
-                var srcIndex = ((rowOffset + i) * Cols) + colOffset;
-                var dstIndex = i * colLength;
-                
-                Array.Copy(this.Data, srcIndex, result.Data, dstIndex, colLength);
-            }
-
-            return result;
-        }
-
-        set
-        {
-            var (rowOffset, rowLength) = rowRange.GetOffsetAndLength(Rows);
-            var (colOffset, colLength) = colRange.GetOffsetAndLength(Cols);
-
-            if (value.Rows != rowLength || value.Cols != colLength)
-            {
-                throw new ArgumentException($"Assigned matrix shape {value.Shape} does not match slice shape ({rowLength}, {colLength}).");
-            }
-
-            for (var i = 0; i < rowLength; i++)
-            {
-                int srcIndex = i * value.Cols;
-                int dstIndex = ((rowOffset + i) * Cols) + colOffset;
-                
-                Array.Copy(value.Data, srcIndex, this.Data, dstIndex, colLength);
-            }
-        }
-    }
-    
-    #endregion
 
     #region Matrix Comparison
     

@@ -1857,4 +1857,152 @@ public class MatrixTests
         double dot = parallel.DotProduct(orthogonal);
         Assert.True(Math.Abs(dot) < 1e-9);
     }
+    
+    [Fact]
+    public void ExtractRows_NonContiguousIndices_BuildsCorrectMatrix()
+    {
+        // Arrange: An 8x2 matrix where the first column matches the row index for easy verification
+        var a = new Matrix(8, 2, [
+            0, 10,  // Row 0
+            1, 10,  // Row 1
+            2, 10,  // Row 2 (Skip)
+            3, 10,  // Row 3 (Skip)
+            4, 10,  // Row 4
+            5, 10,  // Row 5 (Skip)
+            6, 10,  // Row 6
+            7, 10   // Row 7
+        ]);
+
+        // Act: Extract first two, one in the middle, and the last two
+        var extracted = a.ExtractRows(0, 1, 4, a.Rows - 2, a.Rows - 1);
+
+        // Assert
+        Assert.Equal(5, extracted.Rows);
+        Assert.Equal(2, extracted.Cols);
+        
+        Assert.Equal(0, extracted[0, 0]); // Row 0
+        Assert.Equal(1, extracted[1, 0]); // Row 1
+        Assert.Equal(4, extracted[2, 0]); // Row 4
+        Assert.Equal(6, extracted[3, 0]); // Row 6
+        Assert.Equal(7, extracted[4, 0]); // Row 7
+    }
+
+    [Fact]
+    public void ExtractCols_NonContiguousIndices_BuildsCorrectMatrix()
+    {
+        // Arrange: A 2x5 matrix
+        var a = new Matrix(2, 5, [
+            0, 1, 2, 3, 4,
+            0, 1, 2, 3, 4
+        ]);
+
+        // Act: Keep only columns 0, 2, and 4
+        var extracted = a.ExtractColumns(0, 2, 4);
+
+        // Assert
+        Assert.Equal(2, extracted.Rows);
+        Assert.Equal(3, extracted.Cols);
+
+        // Check the first row to ensure the correct columns were grabbed
+        Assert.Equal(0, extracted[0, 0]);
+        Assert.Equal(2, extracted[0, 1]);
+        Assert.Equal(4, extracted[0, 2]);
+    }
+    
+    [Fact]
+    public void ExtractRows_WithCollectionExpressions_MixesIntsAndRanges()
+    {
+        // Arrange: An 8x2 matrix
+        var a = new Matrix(8, 2, [
+            0, 10,
+            1, 10,
+            2, 10,
+            3, 10,
+            4, 10,
+            5, 10,
+            6, 10,
+            7, 10
+        ]);
+
+        // Act: We want rows 1, 2, a range from 3 to 5 (inclusive), and 7.
+        // We use C# 12 Collection Expressions [ ] and the Spread Operator ..
+        // Enumerable.Range(3, 3) generates [3, 4, 5]
+        var extracted = a.ExtractRows([1, 2, ..Enumerable.Range(3, 3), 7]);
+
+        // Assert: It should have perfectly flattened into [1, 2, 3, 4, 5, 7]
+        Assert.Equal(6, extracted.Rows);
+        
+        Assert.Equal(1, extracted[0, 0]);
+        Assert.Equal(2, extracted[1, 0]);
+        Assert.Equal(3, extracted[2, 0]);
+        Assert.Equal(4, extracted[3, 0]);
+        Assert.Equal(5, extracted[4, 0]);
+        Assert.Equal(7, extracted[5, 0]);
+    }
+    
+    [Fact]
+    public void ExtractRows_EmptyOrNullIndices_ThrowsArgumentException()
+    {
+        var a = Matrix.Zeros(5, 5);
+
+        Assert.Throws<ArgumentException>(() => a.ExtractRows());
+        Assert.Throws<ArgumentException>(() => a.ExtractRows(null!));
+    }
+
+    [Fact]
+    public void ExtractRows_OutOfBoundsIndex_ThrowsIndexOutOfRangeException()
+    {
+        var a = Matrix.Zeros(5, 5); // Valid rows are 0 through 4
+
+        Assert.Throws<IndexOutOfRangeException>(() => a.ExtractRows(0, 5)); // 5 is out of bounds
+        Assert.Throws<IndexOutOfRangeException>(() => a.ExtractRows(-1, 2)); // -1 is out of bounds
+    }
+
+    [Fact]
+    public void ExtractCols_EmptyOrNullIndices_ThrowsArgumentException()
+    {
+        var a = Matrix.Zeros(5, 5);
+
+        Assert.Throws<ArgumentException>(() => a.ExtractColumns());
+    }
+
+    [Fact]
+    public void ExtractCols_OutOfBoundsIndex_ThrowsIndexOutOfRangeException()
+    {
+        var a = Matrix.Zeros(5, 5); // Valid cols are 0 through 4
+
+        Assert.Throws<IndexOutOfRangeException>(() => a.ExtractColumns(0, 5));
+        Assert.Throws<IndexOutOfRangeException>(() => a.ExtractColumns(-1));
+    }
+    
+    [Fact]
+    public void FilterRows_ByCondition_RemovesInvalidData()
+    {
+        // Arrange: A dataset where the second column (index 1) represents "Age"
+        var a = new Matrix(4, 2, [
+            1, 25,
+            2, 17, // Under 18, we want to filter this out
+            3, 40,
+            4, 12  // Under 18, filter out
+        ]);
+
+        // Act: Keep only rows where the 2nd column is >= 18
+        var adults = a.FilterRows(row => row[1] >= 18);
+
+        // Assert: Only the 25-year-old and 40-year-old should remain
+        Assert.Equal(2, adults.Rows);
+        Assert.Equal(25, adults[0, 1]);
+        Assert.Equal(40, adults[1, 1]);
+    }
+    
+    [Fact]
+    public void FilterRows_NoMatches_ThrowsInvalidOperationException()
+    {
+        // Arrange: A matrix filled with 1s and 2s
+        var a = new Matrix(2, 2, [1, 1, 2, 2]);
+
+        // Act & Assert: Filtering for something that doesn't exist (e.g., > 10) should safely throw
+        // instead of returning a corrupted 0x0 matrix.
+        Assert.Throws<InvalidOperationException>(() => a.FilterRows(row => row[0] > 10));
+    }
 }
