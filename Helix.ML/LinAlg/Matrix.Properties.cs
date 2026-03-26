@@ -351,34 +351,83 @@ public readonly partial struct Matrix
 
     /// <summary>
     /// Evaluates the geometric shape of the matrix's quadratic form.
-    /// Uses high-speed Cholesky checks for strict definiteness before falling back to Eigenvalue analysis.
+    /// Completely bypasses fragile iterative Eigenvalue solvers for pure O(N^3) Cholesky geometry checks.
     /// </summary>
-    public Definiteness Definiteness(double tolerance = 1e-14)
+    public Definiteness Definiteness(double tolerance = 1e-9)
     {
         if (!IsSquare || !IsSymmetric(tolerance)) return LinAlg.Definiteness.Unknown;
 
-        if (IsPositiveDefinite(tolerance)) return LinAlg.Definiteness.PositiveDefinite;
-        
-        if ((-this).IsPositiveDefinite(tolerance)) return LinAlg.Definiteness.NegativeDefinite;
+        // Check if it forms an upward bowl or trough (Positive)
+        if (CheckPositiveDefiniteness(tolerance, out bool isPosStrict))
+            return isPosStrict ? LinAlg.Definiteness.PositiveDefinite : LinAlg.Definiteness.PositiveSemidefinite;
 
-        var eigenvalues = Eigenvalues();
+        // Check if it forms a downward hill or ridge (Negative) by flipping it
+        if ((-this).CheckPositiveDefiniteness(tolerance, out bool isNegStrict))
+            return isNegStrict ? LinAlg.Definiteness.NegativeDefinite : LinAlg.Definiteness.NegativeSemidefinite;
 
-        var hasPositive = false;
-        var hasNegative = false;
-        var hasZero = false;
+        // If it's neither entirely upward nor entirely downward, it must be a saddle (Indefinite)
+        return LinAlg.Definiteness.Indefinite;
+    }
 
-        foreach (var val in Data)
+    /// <summary>
+    /// Internal engine that tests for both Definite and Semidefinite positive geometry.
+    /// </summary>
+    private bool CheckPositiveDefiniteness(double tolerance, out bool isStrict)
+    {
+        // Could not be bothered to learn how this algorithm works tbh.
+        isStrict = true;
+        var l = Zeros(Rows, Cols);
+        var cols = Cols;
+
+        for (var i = 0; i < Rows; i++)
         {
-            if (val > tolerance) hasPositive = true;
-            else if (val < -tolerance) hasNegative = true;
-            else hasZero = true;
+            var offsetI = i * cols;
+            
+            for (var j = 0; j <= i; j++)
+            {
+                var offsetJ = j * cols;
+                double sum = 0;
+                
+                // Calculate dot product of previously solved row elements
+                for (var k = 0; k < j; k++) 
+                    sum += l.Data[offsetI + k] * l.Data[offsetJ + k];
+
+                if (i == j) // Diagonal elements
+                {
+                    var val = this[i, i] - sum;
+                    
+                    if (val < -tolerance) return false; // It curves downward. Abort.
+
+                    if (Math.Abs(val) <= tolerance)
+                    {
+                        isStrict = false; // We found a flat bottom! It's Semidefinite.
+                        l.Data[offsetI + j] = 0;
+                    }
+                    else
+                    {
+                        l.Data[offsetI + j] = Math.Sqrt(val);
+                    }
+                }
+                else // Off-diagonal elements
+                {
+                    var residual = this[i, j] - sum;
+                    var diag = l.Data[offsetJ + j];
+
+                    if (Math.Abs(diag) <= tolerance)
+                    {
+                        // If the diagonal above us is flat (0), our residual MUST be 0 mathematically
+                        if (Math.Abs(residual) > tolerance) return false; 
+                        
+                        l.Data[offsetI + j] = 0;
+                    }
+                    else
+                    {
+                        l.Data[offsetI + j] = residual / diag;
+                    }
+                }
+            }
         }
-
-        if ( hasPositive && !hasNegative && hasZero) return LinAlg.Definiteness.PositiveSemidefinite;
-        if (!hasPositive &&  hasNegative && hasZero) return LinAlg.Definiteness.NegativeSemidefinite;
-        if ( hasPositive &&  hasNegative)            return LinAlg.Definiteness.Indefinite;
-
-        return LinAlg.Definiteness.Unknown;
+        return true;
     }
 
     #endregion

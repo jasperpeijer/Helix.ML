@@ -11,7 +11,7 @@ public class SVDResult
     public Matrix U { get; }
     public Matrix S { get; }
     public Matrix V { get; }
-    public int Rank => GetRank();
+    public int Rank => GetRank(_tolerance);
     public double ConditionNumber => GetConditionNumber(_tolerance);
 
     private readonly double _tolerance;
