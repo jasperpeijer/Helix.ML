@@ -422,6 +422,38 @@ public readonly partial struct Matrix
 
         return Math.Abs(Determinant()) < tolerance;
     }
+
+    /// <summary>
+    /// Projects this vector onto a target vector. 
+    /// Geometrically, this calculates the "shadow" of this vector resting on the target.
+    /// </summary>
+    public Matrix ProjectOnto(Matrix target, double tolerance = 1e-14)
+    {
+        if (!IsVector || !target.IsVector)
+            throw new InvalidOperationException("Projections are only defined for vectors (N x 1 or 1 x N matrices).");
+        
+        if (Data.Length != target.Data.Length)
+            throw new ArgumentException("Vectors must have the same number of dimensions to be projected.");
+
+        var dotVU = DotProduct(target);
+        var dotUU = target.DotProduct(target);
+        
+        if (Math.Abs(dotUU) < tolerance)
+            throw new DivideByZeroException("Cannot project onto a zero vector.");
+        
+        double scalar = dotVU / dotUU;
+        
+        return target * scalar;
+    }
+    
+    /// <summary>
+    /// Calculates the orthogonal (perpendicular) component of this vector relative to a target vector.
+    /// </summary>
+    public Matrix OrthogonalComponent(Matrix target)
+    {
+        // Formula: v_perp = v - proj_u(v)
+        return this - ProjectOnto(target);
+    }
     
     #endregion
 }

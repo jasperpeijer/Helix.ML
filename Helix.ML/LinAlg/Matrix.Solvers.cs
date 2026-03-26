@@ -73,22 +73,7 @@ public readonly partial struct Matrix
     /// Calculates the Moore-Penrose Pseudoinverse using Singular Value Decomposition (SVD).
     /// Automatically and safely handles square, tall, wide, and rank-deficient matrices.
     /// </summary>
-    public Matrix PseudoInverse(double tolerance = 1e-14)
-    {
-        var (u, s, v) = SVD();
-        var sPlus = Zeros(s.Cols, s.Rows);
-        var minDim = Math.Min(s.Rows, s.Cols);
-
-        for (var i = 0; i < minDim; i++)
-        {
-            if (s[i, i] > tolerance)
-            {
-                sPlus[i, i] = 1.0 / s[i, i];
-            }
-        }
-
-        return v * sPlus * u.T;
-    }
+    public Matrix PseudoInverse(double tolerance = 1e-14) => SVD().PseudoInverse(tolerance);
 
     /// <summary>
     /// Performs LU Decomposition (Doolittle Algorithm) to factor a square matrix into 
@@ -482,10 +467,11 @@ public readonly partial struct Matrix
     /// Factors any matrix into A = U * S * V^T.
     /// Unconditionally stable for all matrix shapes and ranks.
     /// </summary>
-    public (Matrix U, Matrix S, Matrix V) SVD(int maxIterations = 1000, double tolerance = 1e-9)
+    // ReSharper disable once InconsistentNaming
+    public SVDResult SVD(int maxIterations = 1000, double tolerance = 1e-14)
     {
         // K is the maximum possible number of true stretching axes
-        int k = Math.Min(Rows, Cols);
+        var k = Math.Min(Rows, Cols);
         
         // 1. Calculate A^T * A to get the Right Singular Vectors (V)
         var aTa = this.T * this;
@@ -493,9 +479,9 @@ public readonly partial struct Matrix
 
         // 2. Extract and sort Singular Values descending
         var singularPairs = new List<(double Value, int OriginalIndex)>();
-        for (int i = 0; i < eigenvalues.Length; i++)
+        for (var i = 0; i < eigenvalues.Length; i++)
         {
-            double sv = eigenvalues[i] > tolerance ? Math.Sqrt(eigenvalues[i]) : 0.0;
+            var sv = eigenvalues[i] > tolerance ? Math.Sqrt(eigenvalues[i]) : 0.0;
             singularPairs.Add((sv, i));
         }
         singularPairs.Sort((a, b) => b.Value.CompareTo(a.Value));
@@ -505,7 +491,7 @@ public readonly partial struct Matrix
         var v = new Matrix(Cols, k);
         var u = new Matrix(Rows, k); 
 
-        for (int j = 0; j < k; j++) // Only keep the top K components
+        for (var j = 0; j < k; j++) // Only keep the top K components
         {
             var pair = singularPairs[j];
             
@@ -513,21 +499,21 @@ public readonly partial struct Matrix
             s[j, j] = pair.Value;
 
             // Map the corresponding V vector
-            for (int i = 0; i < Cols; i++) v[i, j] = fullV[i, pair.OriginalIndex];
+            for (var i = 0; i < Cols; i++) v[i, j] = fullV[i, pair.OriginalIndex];
 
             // Map the U vector using U_i = (A * V_i) / sigma_i
             if (pair.Value > tolerance)
             {
-                for (int i = 0; i < Rows; i++)
+                for (var i = 0; i < Rows; i++)
                 {
-                    double dot = 0.0;
-                    for (int c = 0; c < Cols; c++) dot += this[i, c] * fullV[c, pair.OriginalIndex];
+                    var dot = 0.0;
+                    for (var c = 0; c < Cols; c++) dot += this[i, c] * fullV[c, pair.OriginalIndex];
                     u[i, j] = dot / pair.Value;
                 }
             }
         }
 
-        return (u, s, v);
+        return new SVDResult(u, s, v, tolerance);
     }
 
     /// <summary>
@@ -586,6 +572,18 @@ public readonly partial struct Matrix
         }
 
         return x;
+    }
+
+    /// <summary>
+    /// Solves the linear system Ax = b for x using Ordinary Least Squares.
+    /// Safely handles overdetermined (tall) and underdetermined (wide) systems via the SVD PseudoInverse.
+    /// </summary>
+    public Matrix SolveLeastSquares(Matrix b, double tolerance = 1e-14)
+    {
+        if (Rows != b.Rows)
+            throw new ArgumentException("Matrix A and target matrix b must have the same number of rows.");
+
+        return this.PseudoInverse(tolerance) * b;
     }
     
     #endregion Solvers

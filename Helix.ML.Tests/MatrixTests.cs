@@ -1722,10 +1722,10 @@ public class MatrixTests
         ]);
 
         // Act
-        var (u, s, v) = a.SVD();
+        var svdResult = a.SVD();
 
         // Assert: A = U * S * V^T
-        var reconstructed = u * s * v.T;
+        var reconstructed = svdResult.U * svdResult.S * svdResult.V.T;
         Assert.True(reconstructed.IsCloseTo(a, 1e-5));
     }
     
@@ -1746,5 +1746,115 @@ public class MatrixTests
         // Assert: The geometric definition of a Moore-Penrose inverse is A * A^+ * A = A
         var projection = brokenData * pseudoInv * brokenData;
         Assert.True(projection.IsCloseTo(brokenData, 1e-5));
+    }
+
+    [Fact]
+    public void Rank_FullRankMatrix_ReturnsCorrectDimension()
+    {
+        // Arrange: A 3x3 matrix where every row is mathematically independent
+        var a = new Matrix(3, 3, [
+            1.0, 0.0, 0.0,
+            0.0, 2.0, 0.0,
+            0.0, 0.0, 3.0
+        ]);
+
+        // Act & Assert
+        Assert.Equal(3, a.Rank());
+    }
+    
+    [Fact]
+    public void Rank_RankDeficientMatrix_ReturnsLowerDimension()
+    {
+        // Arrange: Row 2 is exactly Row 1 multiplied by 2. 
+        // This is fake geometry, so the true rank is only 2.
+        var a = new Matrix(3, 3, [
+            1.0, 2.0, 3.0,
+            2.0, 4.0, 6.0, 
+            7.0, 8.0, 9.0
+        ]);
+
+        // Act & Assert
+        Assert.Equal(2, a.Rank());
+    }
+    
+    [Fact]
+    public void ConditionNumber_PerfectMatrix_ReturnsOne()
+    {
+        // Arrange: The Identity matrix stretches all axes equally (by 1)
+        var a = Matrix.Identity(4);
+
+        // Act
+        double cond = a.ConditionNumber();
+
+        // Assert: Allow a tiny floating point tolerance
+        Assert.True(Math.Abs(cond - 1.0) < 1e-5);
+    }
+    
+    [Fact]
+    public void ConditionNumber_SingularMatrix_ReturnsInfinity()
+    {
+        // Arrange: A perfectly flat matrix (rank 1 instead of 2)
+        var a = new Matrix(2, 2, [
+            1.0, 1.0,
+            1.0, 1.0
+        ]);
+
+        // Act & Assert
+        Assert.Equal(double.PositiveInfinity, a.ConditionNumber());
+    }
+    
+    [Fact]
+    public void SolveLeastSquares_OverdeterminedSystem_FindsLineOfBestFit()
+    {
+        // Arrange
+        // We are trying to solve: [x, 1] * [slope; intercept] = [y]
+        var features = new Matrix(3, 2, [
+            1.0, 1.0,  // x=1, intercept multiplier=1
+            2.0, 1.0,  // x=2
+            3.0, 1.0   // x=3
+        ]);
+
+        var targets = new Matrix(3, 1, [
+            3.0,       // y=3
+            5.0,       // y=5
+            7.0        // y=7
+        ]);
+
+        // Act
+        var weights = features.SolveLeastSquares(targets);
+
+        // Assert: The engine should find that slope = 2.0, intercept = 1.0
+        Assert.True(Math.Abs(weights[0, 0] - 2.0) < 1e-5); // Slope
+        Assert.True(Math.Abs(weights[1, 0] - 1.0) < 1e-5); // Intercept
+    }
+    
+    [Fact]
+    public void ProjectOnto_StandardVectors_DecomposesCorrectly()
+    {
+        // Arrange
+        // v is our slanted stick pointing at (3, 4)
+        var v = new Matrix(2, 1, [3.0, 4.0]);
+        // u is the ground, perfectly flat along the X-axis (10, 0)
+        var u = new Matrix(2, 1, [10.0, 0.0]);
+
+        // Act
+        var parallel = v.ProjectOnto(u);
+        var orthogonal = v.OrthogonalComponent(u);
+
+        // Assert 1: The shadow on the X-axis should be exactly length 3.
+        Assert.True(Math.Abs(parallel[0, 0] - 3.0) < 1e-9);
+        Assert.True(Math.Abs(parallel[1, 0] - 0.0) < 1e-9);
+
+        // Assert 2: The vertical component should point straight up by 4.
+        Assert.True(Math.Abs(orthogonal[0, 0] - 0.0) < 1e-9);
+        Assert.True(Math.Abs(orthogonal[1, 0] - 4.0) < 1e-9);
+
+        // Assert 3: The reconstruction (parallel + orthogonal) should equal the original v
+        var reconstructed = parallel + orthogonal;
+        Assert.True(reconstructed.IsCloseTo(v, 1e-9));
+
+        // Assert 4: The two components must be perfectly 90 degrees (Dot Product == 0)
+        double dot = parallel.DotProduct(orthogonal);
+        Assert.True(Math.Abs(dot) < 1e-9);
     }
 }

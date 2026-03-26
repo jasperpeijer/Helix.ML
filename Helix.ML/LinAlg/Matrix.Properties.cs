@@ -294,5 +294,21 @@ public readonly partial struct Matrix
         }
     }
 
+    /// <summary>
+    /// Calculates the Rank of the matrix (the number of linearly independent rows/columns).
+    /// </summary>
+    public int Rank(double tolerance = 1e-14) => SVD(tolerance: tolerance).Rank;
+
+    /// <summary>
+    /// Calculates the Condition Number (L2-norm) of the matrix.
+    /// A high condition number (> 1e4) indicates the matrix is ill-conditioned and sensitive to numerical errors.
+    /// </summary>
+    public double ConditionNumber(double tolerance = 1e-14) => SVD(tolerance: tolerance).ConditionNumber;
+    
+    /// <summary>
+    /// Checks if the matrix is geometrically a vector (either an N x 1 column or a 1 x N row).
+    /// </summary>
+    public bool IsVector => Rows == 1 || Cols == 1;
+
     #endregion
 }
