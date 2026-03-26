@@ -2005,4 +2005,81 @@ public class MatrixTests
         // instead of returning a corrupted 0x0 matrix.
         Assert.Throws<InvalidOperationException>(() => a.FilterRows(row => row[0] > 10));
     }
+    
+    [Fact]
+    public void CholeskyDecomposition_PositiveDefiniteMatrix_ReconstructsPerfectly()
+    {
+        // Arrange: A perfectly symmetric, positive-definite matrix
+        var a = new Matrix(3, 3, [
+            4, 12, -16,
+            12, 37, -43,
+            -16, -43,  98
+        ]);
+
+        // Act
+        var l = a.CholeskyDecomposition();
+
+        // Assert: A = L * L^T
+        var reconstructed = l * l.T;
+        Assert.True(reconstructed.IsCloseTo(a));
+        Assert.True(l.IsLowerTriangular());
+    }
+
+    [Fact]
+    public void IsPositiveDefinite_EvaluatesCorrectly()
+    {
+        // A standard Positive Definite matrix
+        var pdMatrix = new Matrix(2, 2, [ 2, -1, -1, 2 ]);
+        
+        // A matrix that curves down (Negative Definite)
+        var ndMatrix = new Matrix(2, 2, [ -2, 1, 1, -2 ]);
+
+        Assert.True(pdMatrix.IsPositiveDefinite());
+        Assert.False(ndMatrix.IsPositiveDefinite());
+    }
+
+    [Fact]
+    public void QuadraticForm_EvaluatesCorrectlyWithoutAllocations()
+    {
+        // Arrange
+        var a = new Matrix(2, 2, [ 2, 0, 0, 3 ]);
+        var x = new Matrix(2, 1, [ 4, 5 ]);
+
+        // Act
+        double result = a.QuadraticForm(x);
+
+        // Assert:
+        // x^T * A * x = [4, 5] * [2, 0; 0, 3] * [4; 5] 
+        // = (4 * 2 * 4) + (5 * 3 * 5) = 32 + 75 = 107
+        Assert.Equal(107.0, result);
+    }
+    
+    [Fact]
+    public void GetDefiniteness_NegativeDefinite_ReturnsCorrectEnum()
+    {
+        // A perfect downward hill (Eigenvalues are -2 and -4)
+        var ndMatrix = new Matrix(2, 2, [ -3, 1, 1, -3 ]);
+
+        Assert.Equal(Definiteness.NegativeDefinite, ndMatrix.Definiteness());
+    }
+
+    [Fact]
+    public void GetDefiniteness_PositiveSemidefinite_ReturnsCorrectEnum()
+    {
+        // A bowl with a flat bottom. Row 2 is exactly Row 1 multiplied by 2.
+        // This linear dependence creates an Eigenvalue of exactly 0.
+        var psdMatrix = new Matrix(2, 2, [ 1, 2, 2, 4 ]);
+
+        Assert.Equal(Definiteness.PositiveSemidefinite, psdMatrix.Definiteness());
+    }
+
+    [Fact]
+    public void GetDefiniteness_Indefinite_ReturnsCorrectEnum()
+    {
+        // A Pringles chip (Saddle). Stretching positively in one direction, compressing in another.
+        // Eigenvalues are +2 and -2.
+        var indefiniteMatrix = new Matrix(2, 2, [ 0, 2, 2, 0 ]);
+
+        Assert.Equal(Definiteness.Indefinite, indefiniteMatrix.Definiteness());
+    }
 }

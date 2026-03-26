@@ -310,5 +310,86 @@ public readonly partial struct Matrix
     /// </summary>
     public bool IsVector => Rows == 1 || Cols == 1;
 
+    /// <summary>
+    /// Calculates the scalar Quadratic Form (x^T * A * x) for a given vector x.
+    /// Executed in highly optimized O(N^2) time without allocating any intermediate matrices.
+    /// </summary>
+    public double QuadraticForm(Matrix x)
+    {
+        if (!IsSquare) 
+            throw new InvalidOperationException("Matrix must be square to calculate the Quadratic Form.");
+        if (!x.IsVector) 
+            throw new ArgumentException("The input x must be a vector.");
+        if (x.Data.Length != Rows) 
+            throw new ArgumentException("The vector length must match the matrix dimensions.");
+
+        double result = 0;
+
+        for (var i = 0; i < Rows; i++)
+        {
+            double rowSum = 0;
+
+            for (var j = 0; j < Cols; j++)
+            {
+                rowSum += this[i, j] * x.Data[j];
+            }
+            
+            result += rowSum * x.Data[i];
+        }
+        
+        return result;
+    }
+    
+    /// <summary>
+    /// Checks if the matrix forms a perfect, upward-facing "bowl" geometry.
+    /// Evaluates in O(N^3 / 3) time by utilizing the Cholesky fast-path.
+    /// </summary>
+    public bool IsPositiveDefinite(double tolerance = 1e-14)
+    {
+        return TryCholeskyDecomposition(out _, tolerance);
+    }
+
+    /// <summary>
+    /// Evaluates the geometric shape of the matrix's quadratic form.
+    /// Uses high-speed Cholesky checks for strict definiteness before falling back to Eigenvalue analysis.
+    /// </summary>
+    public Definiteness Definiteness(double tolerance = 1e-14)
+    {
+        if (!IsSquare || !IsSymmetric(tolerance)) return LinAlg.Definiteness.Unknown;
+
+        if (IsPositiveDefinite(tolerance)) return LinAlg.Definiteness.PositiveDefinite;
+        
+        if ((-this).IsPositiveDefinite(tolerance)) return LinAlg.Definiteness.NegativeDefinite;
+
+        var eigenvalues = Eigenvalues();
+
+        var hasPositive = false;
+        var hasNegative = false;
+        var hasZero = false;
+
+        foreach (var val in Data)
+        {
+            if (val > tolerance) hasPositive = true;
+            else if (val < -tolerance) hasNegative = true;
+            else hasZero = true;
+        }
+
+        if ( hasPositive && !hasNegative && hasZero) return LinAlg.Definiteness.PositiveSemidefinite;
+        if (!hasPositive &&  hasNegative && hasZero) return LinAlg.Definiteness.NegativeSemidefinite;
+        if ( hasPositive &&  hasNegative)            return LinAlg.Definiteness.Indefinite;
+
+        return LinAlg.Definiteness.Unknown;
+    }
+
     #endregion
+}
+
+public enum Definiteness
+{
+    PositiveDefinite,
+    PositiveSemidefinite,
+    NegativeDefinite,
+    NegativeSemidefinite,
+    Indefinite,
+    Unknown
 }

@@ -585,6 +585,69 @@ public readonly partial struct Matrix
 
         return this.PseudoInverse(tolerance) * b;
     }
+
+    /// <summary>
+    /// Attempts to perform Cholesky Decomposition. 
+    /// Returns true if successful, or false if the matrix is not symmetric positive-definite.
+    /// </summary>
+    public bool TryCholeskyDecomposition(out Matrix lMatrix, double tolerance = 1e-14)
+    {
+        lMatrix = default;
+
+        if (!IsSquare || !IsSymmetric(tolerance)) return false;
+
+        var l = Zeros(Rows, Cols);
+        var vectorSize = Vector<double>.Count;
+        
+        for (var i = 0; i < Rows; i++)
+        {
+            var offsetI = i * Cols;
+            
+            for (var j = 0; j <= i; j++)
+            {
+                var offsetJ = j * Cols;
+                double sum = 0;
+                var k = 0;
+
+                for (; k <= j - vectorSize; k += vectorSize)
+                {
+                    var vI = new Vector<double>(l.Data, offsetI + k);
+                    var vJ = new Vector<double>(l.Data, offsetJ + k);
+                    sum += Vector.Dot(vI, vJ);
+                }
+
+                for (; k < j; k++)
+                {
+                    sum += l.Data[offsetI + k] * l.Data[offsetJ + k];
+                }
+
+                if (i == j)
+                {
+                    var val = this[i, i] - sum;
+
+                    if (val <= tolerance) return false;
+
+                    l[i, j] = Math.Sqrt(val);
+                }
+                else
+                {
+                    l[i, j] = (this[i, j] - sum) / l[j, j];
+                }
+            }
+        }
+
+        lMatrix = l;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Performs Cholesky Decomposition (A = L * L^T) for symmetric positive-definite matrices.
+    /// Operates twice as fast as LU Decomposition.
+    /// </summary>
+    public Matrix CholeskyDecomposition(double tolerance = 1e-14) => !TryCholeskyDecomposition(out var l, tolerance) 
+            ? throw new InvalidOperationException("Matrix must be symmetric and positive-definite to use Cholesky.") 
+            : l;
     
     #endregion Solvers
 }
