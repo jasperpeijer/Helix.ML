@@ -12,7 +12,7 @@ public readonly partial struct Matrix
     public int Cols { get; }
     public (int Rows, int Cols) Shape => (Rows, Cols);
 
-    public readonly double[] Data;
+    internal readonly double[] Data;
 
     #region Constructors
     

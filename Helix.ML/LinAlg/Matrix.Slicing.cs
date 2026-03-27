@@ -99,33 +99,25 @@ public partial struct Matrix
     /// </summary>
     public Matrix FilterRows(Func<double[], bool> predicate)
     {
-        if (predicate == null)
-            return this;
+        ArgumentNullException.ThrowIfNull(predicate);
 
-        var keptRows = new System.Collections.Generic.List<double[]>();
+        var keptIndices = new List<int>();
+        var rowBuffer = new double[Cols];
 
         for (var i = 0; i < Rows; i++)
         {
-            var rowData = new double[Cols];
-            Array.Copy(Data, i * Cols, rowData, 0, Cols);
+            Array.Copy(Data, i * Cols, rowBuffer, 0, Cols);
 
-            if (predicate(rowData))
+            if (predicate(rowBuffer))
             {
-                keptRows.Add(rowData);
+                keptIndices.Add(i);
             }
         }
         
-        if (keptRows.Count == 0)
+        if (keptIndices.Count == 0)
             throw new InvalidOperationException("Filter resulted in an empty matrix.");
-        
-        var result = new Matrix(keptRows.Count, Cols);
 
-        for (var i = 0; i < keptRows.Count; i++)
-        {
-            Array.Copy(keptRows[i], 0, result.Data, i * Cols, Cols);
-        }
-
-        return result;
+        return ExtractRows([..keptIndices]);
     }
     
     #region Matrix Indexing & Slicing
