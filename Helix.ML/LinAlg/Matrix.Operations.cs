@@ -454,6 +454,76 @@ public readonly partial struct Matrix
         // Formula: v_perp = v - proj_u(v)
         return this - ProjectOnto(target);
     }
+
+    /// <summary>
+    /// Calculates the mean of each column. 
+    /// Optimized using Row-Major memory traversal to maximize L1 Cache hits.
+    /// </summary>
+    public double[] ColumnMeans()
+    {
+        var means = new double[Cols];
+
+        for (var i = 0; i < Rows; i++)
+        {
+            var offset = i * Cols;
+
+            for (var j = 0; j < Cols; j++)
+            {
+                means[j] += Data[offset + j];
+            }
+        }
+
+        for (var j = 0; j < Cols; j++)
+        {
+            means[j] /= Rows;
+        }
+
+        return means;
+    }
+
+    /// <summary>
+    /// Subtracts a mean vector from every row in the matrix, shifting the data's center of gravity to the origin (0,0).
+    /// If no mean vector is provided, it calculates the column means automatically.
+    /// </summary>
+    public Matrix MeanCenterColumns(double[]? providedMeans = null)
+    {
+        var means = providedMeans ?? ColumnMeans();
+        var rows = Rows;
+        var cols = Cols;
+        var data = Data;
+        
+        if (means.Length != cols)
+            throw new ArgumentException("The mean vector must have exactly one element per column.");
+
+        var centered = new Matrix(Shape);
+
+        if (rows * cols > 100_000)
+        {
+            Parallel.For(0, rows, i =>
+            {
+                var offset = i * cols;
+
+                for (var j = 0; j < cols; j++)
+                {
+                    centered.Data[offset + j] = data[offset + j] - means[j];
+                }
+            });
+        }
+        else
+        {
+            for (var i = 0; i < rows; i++)
+            {
+                var offset = i * cols;
+                
+                for (var j = 0; j < cols; j++)
+                {
+                    centered.Data[offset + j] = Data[offset + j] - means[j];
+                }
+            }
+        }
+
+        return centered;
+    }
     
     #endregion
 }

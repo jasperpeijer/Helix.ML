@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helix.ML.Tests", "Helix.ML.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helix.ML.Benchmark", "Helix.ML.Benchmark\Helix.ML.Benchmark.csproj", "{C8763AE7-235D-4B13-9256-EB1474AC1117}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Playground", "Playground\Playground.csproj", "{C815E360-51AF-4FF8-A782-2B6E69B990B8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{C8763AE7-235D-4B13-9256-EB1474AC1117}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C8763AE7-235D-4B13-9256-EB1474AC1117}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C8763AE7-235D-4B13-9256-EB1474AC1117}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C815E360-51AF-4FF8-A782-2B6E69B990B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C815E360-51AF-4FF8-A782-2B6E69B990B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C815E360-51AF-4FF8-A782-2B6E69B990B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C815E360-51AF-4FF8-A782-2B6E69B990B8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

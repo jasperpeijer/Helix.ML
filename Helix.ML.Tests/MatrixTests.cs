@@ -1,4 +1,5 @@
 ﻿using Helix.ML.LinAlg;
+using Helix.ML.Stat;
 using Xunit.Abstractions;
 
 namespace Helix.ML.Tests;
@@ -2081,5 +2082,127 @@ public class MatrixTests
         var indefiniteMatrix = new Matrix(2, 2, [ 0, 2, 2, 0 ]);
 
         Assert.Equal(Definiteness.Indefinite, indefiniteMatrix.Definiteness());
+    }
+    
+    [Fact]
+    public void Fit_CalculatesCorrectMeanAndVariance()
+    {
+        // Arrange: A dataset that forms a perfect, slanted straight line
+        var X = new Matrix(4, 2, [
+            2, 3,
+            4, 5,
+            6, 7,
+            8, 9
+        ]);
+        var pca = new PCA();
+
+        // Act
+        pca.Fit(X);
+
+        // Assert 1: The center of gravity is exactly (5, 6)
+        Assert.Equal(5.0, pca.MeanVector[0]);
+        Assert.Equal(6.0, pca.MeanVector[1]);
+
+        // Assert 2: Because the data is a perfect line, the 1st Principal Component 
+        // should capture exactly 100% (1.0) of the variance. The 2nd captures 0%.
+        Assert.True(Math.Abs(pca.ExplainedVarianceRatio[0] - 1.0) < 1e-9);
+        Assert.True(Math.Abs(pca.ExplainedVarianceRatio[1] - 0.0) < 1e-9);
+    }
+    
+    [Fact]
+    public void Transform_ReducesDimensionality()
+    {
+        // Arrange: A 3x3 matrix
+        var X = new Matrix(3, 3, [
+            1, 2, 3,
+            4, 5, 6,
+            7, 8, 9
+        ]);
+        var pca = new PCA();
+
+        // Act: Fit the model and immediately compress it down to 1 dimension
+        var compressed = pca.FitTransform(X, dimensionsToKeep: 1);
+
+        // Assert: We started with 3 columns, we should now have exactly 1
+        Assert.Equal(3, compressed.Rows);
+        Assert.Equal(1, compressed.Cols);
+    }
+    
+    [Fact]
+    public void Transform_WithoutCallingFit_ThrowsException()
+    {
+        var X = Matrix.Zeros(3, 3);
+        var pca = new PCA();
+
+        // Act & Assert: Trying to transform without learning the means/axes first must fail
+        Assert.Throws<InvalidOperationException>(() => pca.Transform(X));
+    }
+    
+    [Fact]
+    public void ColumnMeans_CalculatesCorrectly()
+    {
+        // Arrange
+        var m = new Matrix(3, 2, [
+            2, 10,
+            4, 20,
+            6, 30
+        ]);
+
+        // Act
+        var means = m.ColumnMeans();
+
+        // Assert
+        Assert.Equal(4.0, means[0]);
+        Assert.Equal(20.0, means[1]);
+    }
+
+    [Fact]
+    public void CenterColumns_ShiftsDataToOrigin()
+    {
+        // Arrange
+        var m = new Matrix(3, 2, [
+            2, 10,
+            4, 20,
+            6, 30
+        ]);
+
+        // Act
+        var centered = m.MeanCenterColumns();
+
+        // Assert: Mean is [4, 20], so subtract that from every row
+        Assert.Equal(-2.0, centered[0, 0]);
+        Assert.Equal(-10.0, centered[0, 1]);
+        
+        Assert.Equal(0.0, centered[1, 0]);
+        Assert.Equal(0.0, centered[1, 1]);
+        
+        Assert.Equal(2.0, centered[2, 0]);
+        Assert.Equal(10.0, centered[2, 1]);
+    }
+
+    [Fact]
+    public void CenterColumns_LargeMatrix_ParallelExecutionSucceeds()
+    {
+        // Arrange: Create a matrix large enough to trigger the > 100,000 parallel path
+        int rows = 1000;
+        int cols = 150; // 150,000 total elements
+        var m = new Matrix(rows, cols);
+        
+        for(int i = 0; i < rows; i++)
+        {
+            for(int j = 0; j < cols; j++)
+            {
+                // Fill every column 'j' entirely with the number 'j'
+                m.Data[i * cols + j] = j; 
+            }
+        }
+
+        // Act: The mean of column 'j' should be exactly 'j'
+        var centered = m.MeanCenterColumns();
+
+        // Assert: After centering, every single element in the matrix should be exactly 0
+        Assert.Equal(0.0, centered[0, 0]);
+        Assert.Equal(0.0, centered[500, 75]); // Check a random middle element
+        Assert.Equal(0.0, centered[rows - 1, cols - 1]);
     }
 }
