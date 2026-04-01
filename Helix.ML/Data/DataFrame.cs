@@ -213,7 +213,8 @@ public class DataFrame
         {
             var col = Columns[j];
                 
-            types[j] = col.DataType.Name;
+            var underlyingType = Nullable.GetUnderlyingType(col.DataType);
+            types[j] = underlyingType != null ? underlyingType.Name + "?" : col.DataType.Name;
 
             var validCount = 0;
 
@@ -299,9 +300,8 @@ public class DataFrame
             }
             else if (rawData.All(val => string.IsNullOrWhiteSpace(val) || bool.TryParse(val, out _)))
             {
-                var boolData = rawData.Select(val => !string.IsNullOrWhiteSpace(val) && bool.Parse(val))
-                    .ToArray();
-                finalColumns.Add(new Column<bool>(colName, boolData));
+                var boolData = rawData.Select(val => string.IsNullOrWhiteSpace(val) ? (bool?)null : bool.Parse(val)).ToArray();
+                finalColumns.Add(new Column<bool?>(colName, boolData));
             }
             else if (rawData.All(val => string.IsNullOrWhiteSpace(val) || TimeSpan.TryParse(val, CultureInfo.InvariantCulture, out _)))
             {
