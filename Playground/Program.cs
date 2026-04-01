@@ -8,7 +8,8 @@ public class Program
     public static void Main(string[] args)
     {
         // PCAExample();
-        DataFrameExample();
+        // DataFrameExample();
+        LoadCsvExample();
     }
 
     private static void PCAExample()
@@ -97,27 +98,25 @@ public class Program
 
     private static void DataFrameExample()
     {
-        // Create raw data
-        double[] rawCarData = [
-            21.0, 160.0, 2.62,
-            21.0, 160.0, 2.875,
-            22.8, 108.0, 2.32,
-            21.4, 258.0, 3.215,
-            18.7, 360.0, 3.44
-        ];
-        var matrix = new Matrix(5, 3, rawCarData);
+        var models = new Column<string>("Model", ["Mustang", "Corolla", "Civic"]);
+        var mpg = new Column<double>("MPG", [18.5, 32.1, 30.0]);
+        var isElectric = new Column<bool>("IsElectric", [false, false, false]);
 
-        // Wrap it in a DataFrame
-        var df = new DataFrame(matrix, ["MPG", "Horsepower", "Weight"]);
+        var df = new DataFrame([models, mpg, isElectric]);
 
-        // View the data exactly like pandas df.head()
-        df.Head();
+        df.Print();
+        Console.WriteLine(df.Describe());
+    }
 
-        // Slice it! Just grab HP and Weight for PCA
-        var featuresDf = df.Select("Horsepower", "Weight");
-        featuresDf.Head(3);
+    private static void LoadCsvExample()
+    {
+        var df = DataFrame.LoadCsv("datasets/df_test.csv");
 
-        // Extract a single column for math (Returns an Nx1 Matrix)
-        Matrix y = df["MPG"];
+        // Print the raw data to see the NaN and type handling
+        Console.WriteLine(df);
+
+        // Prove that Describe() mathematically ignores the 'Model' and 'IsElectric' columns,
+        // successfully calculates the stats for 'Price', and skips over the Tesla's NaN 'EngineSize'.
+        Console.WriteLine(df.Describe());
     }
 }
