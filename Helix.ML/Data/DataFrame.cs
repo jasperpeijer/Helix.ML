@@ -164,18 +164,31 @@ public class DataFrame
             {
                 var min = double.MaxValue;
                 var max = double.MinValue;
+                var validCount = 0;
 
                 for (var i = 0; i < Rows; i++)
                 {
                     var val = col[i];
-                    colBuffer[i] = val;
+
+                    if (double.IsNaN(val)) continue;
+                    
+                    colBuffer[validCount] = val;
+                    validCount++;
+                    
                     if (val < min) min = val;
                     if (val > max) max = val;
                 }
 
-                var span = colBuffer.AsSpan(0, Rows);
+                if (validCount == 0)
+                {
+                    resultColumns[j] =
+                        new Column<double>(col.Name, [0, double.NaN, double.NaN, double.NaN, double.NaN]);
+                    return;
+                }
+
+                var span = colBuffer.AsSpan(0, validCount);
                 var summary = DescriptiveStats.ComputeSummary(span, asSample: true);
-                var statValues = new double[] { Rows, summary.Mean, summary.StdDev, min, max };
+                var statValues = new double[] { validCount, summary.Mean, summary.StdDev, min, max };
                 resultColumns[j] = new Column<double>(col.Name, statValues);
             }
             finally
@@ -185,6 +198,50 @@ public class DataFrame
         });
         
         return new DataFrame(resultColumns, statNames);
+    }
+
+    /// <summary>
+    /// Returns a summary DataFrame containing column data types and non-null counts.
+    /// </summary>
+    public DataFrame Info()
+    {
+        var types = new string[Cols];
+        var nonNulls = new double[Cols];
+        var missing = new double[Cols];
+
+        for (var j = 0; j < Cols; j++)
+        {
+            var col = Columns[j];
+                
+            types[j] = col.DataType.Name;
+
+            var validCount = 0;
+
+            for (var i = 0; i < Rows; i++)
+            {
+                var val = col.GetValue(i);
+
+                var isValid = val switch
+                {
+                    double d => !double.IsNaN(d),
+                    string s => !string.IsNullOrWhiteSpace(s),
+                    DateTime dt => dt != DateTime.MinValue,
+                    TimeSpan ts => ts != TimeSpan.Zero,
+                    _ => val != null
+                };
+
+                if (isValid) validCount++;
+            }
+
+            nonNulls[j] = validCount;
+            missing[j] = Rows - validCount;
+        }
+
+        var typeColumn = new Column<string>("DataType", types);
+        var validColumn = new Column<double>("NonNull_Count", nonNulls);
+        var missingColumn = new Column<double>("Missing_Count", missing);
+
+        return new DataFrame([typeColumn, validColumn, missingColumn], ColumnNames);
     }
 
     /// <summary>
@@ -245,6 +302,21 @@ public class DataFrame
                 var boolData = rawData.Select(val => !string.IsNullOrWhiteSpace(val) && bool.Parse(val))
                     .ToArray();
                 finalColumns.Add(new Column<bool>(colName, boolData));
+            }
+            else if (rawData.All(val => string.IsNullOrWhiteSpace(val) || TimeSpan.TryParse(val, CultureInfo.InvariantCulture, out _)))
+            {
+                var timeData = rawData.Select(val => string.IsNullOrWhiteSpace(val) ? TimeSpan.Zero : TimeSpan.Parse(val, CultureInfo.InvariantCulture)).ToArray();
+                finalColumns.Add(new Column<TimeSpan>(colName, timeData));
+            }
+            else if (rawData.All(val => 
+                     {
+                         if (string.IsNullOrWhiteSpace(val)) return true;
+                         string[] formats = ["yyyy-MM-dd", "MM/dd/yyyy", "dd-MM-yyyy", "yyyy/MM/dd HH:mm:ss", "O"];
+                         return DateTime.TryParseExact(val, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+                     }))
+            {
+                var dateData = rawData.Select(val => string.IsNullOrWhiteSpace(val) ? DateTime.MinValue : DateTime.Parse(val, CultureInfo.InvariantCulture)).ToArray();
+                finalColumns.Add(new Column<DateTime>(colName, dateData));
             }
             else
             {

@@ -118,5 +118,7 @@ public class Program
         // Prove that Describe() mathematically ignores the 'Model' and 'IsElectric' columns,
         // successfully calculates the stats for 'Price', and skips over the Tesla's NaN 'EngineSize'.
         Console.WriteLine(df.Describe());
+        
+        Console.WriteLine(df.Info());
     }
 }
