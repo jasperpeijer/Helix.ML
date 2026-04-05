@@ -10,4 +10,8 @@ public interface IColumn
     Type DataType { get; }
 
     object GetValue(int index);
+    IColumn GetRows(int[] indices);
+    IColumn Concat(IColumn bottom);
+    IColumn Rename(string newName);
+    IColumn Clone();
 }

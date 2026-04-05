@@ -18,7 +18,7 @@ public static class DataScaler
             return;
         }
 
-        for (int i = 0; i < data.Length; i++)
+        for (var i = 0; i < data.Length; i++)
         {
             data[i] = (data[i] - mean) / stdDev;
         }
@@ -29,7 +29,7 @@ public static class DataScaler
     /// </summary>
     public static double[] GetStandardized(ReadOnlySpan<double> data)
     {
-        double[] result = data.ToArray();
+        var result = data.ToArray();
         Standardize(result);
         
         return result;
@@ -43,16 +43,16 @@ public static class DataScaler
     {
         if (data.IsEmpty) return;
         
-        double min = double.MaxValue;
-        double max = double.MinValue;
+        var min = double.MaxValue;
+        var max = double.MinValue;
 
-        foreach (double val in data)
+        foreach (var val in data)
         {
             if (val < min) min = val;
             if (val > max) max = val;
         }
         
-        double range = max - min;
+        var range = max - min;
 
         if (range == 0)
         {
@@ -60,7 +60,7 @@ public static class DataScaler
             return;
         }
 
-        for (int i = 0; i < data.Length; i++)
+        for (var i = 0; i < data.Length; i++)
         {
             data[i] = (data[i] - min) / range;
         }
@@ -71,7 +71,7 @@ public static class DataScaler
     /// </summary>
     public static double[] GetMinMaxScaled(ReadOnlySpan<double> data)
     {
-        double[] result = data.ToArray();
+        var result = data.ToArray();
         MinMaxScale(result);
         return result;
     }
