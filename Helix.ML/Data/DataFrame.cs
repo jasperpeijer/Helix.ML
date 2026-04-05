@@ -102,17 +102,15 @@ public class DataFrame
     /// <summary>
     /// Prints the DataFrame to the console in a beautifully formatted ASCII table.
     /// </summary>
-    public void Print(int? numRows = null, int? maxCols = 8)
+    public void Print(int? numRows = null, int? maxCols = 8, int colWidth = 15, int indexWidth = 12)
     {
-        Console.WriteLine(ToString(numRows, maxCols));
+        Console.WriteLine(ToString(numRows, maxCols, colWidth, indexWidth));
     }
 
-    public string ToString(int? numRows, int? maxCols = 8)
+    public string ToString(int? numRows, int? maxCols = 8, int colWidth = 15, int indexWidth = 12)
     {
         var displayRows = Math.Min(numRows ?? 10, Rows);
         var truncateCols = maxCols.HasValue && Cols > maxCols.Value;
-        var colWidth = 15;
-        var indexWidth = 12;
         var displayCols = new List<IColumn>();
         int leftTake = 0;
 
@@ -472,6 +470,15 @@ public class DataFrame
     {
         var newColumns = new List<IColumn>(Cols);
         var colsToEncode = new HashSet<string>(columnNames);
+        
+        if (columnNames.Length == 0)
+        {
+            foreach (var col in Columns)
+            {
+                if (col is not Column<double> _ or Column<int>)
+                    colsToEncode.Add(col.Name);
+            }
+        }
 
         foreach (var col in Columns)
         {

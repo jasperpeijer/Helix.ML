@@ -16,7 +16,8 @@ public class Program
         // await LinearRegressionWorkflowTest();
         // await FilteringExample();
         // await VectorMathAndFilteringTest();
-        await NewColumnExample();
+        // await NewColumnExample();
+        KMeansExample();
     }
 
     private static void PCAExample()
@@ -378,5 +379,33 @@ public class Program
 
         var filteredDf = df.Select("pickup", "dropoff", "ride_duration", "fare", "tip", "total_cost");
         filteredDf.Print();
+    }
+
+    private static void KMeansExample()
+    {
+        var df = DataFrame.LoadCsv("datasets/kmeans_test.csv");
+        Console.WriteLine(df);
+        df.Info().Print(indexWidth: 25);
+
+        df = df.Select("total_payment", "tip", "most_expensive_item", "regular_customer", "amount_of_customers");
+        df.Info().Print(indexWidth: 25);
+
+        var km = new KMeans(4);
+        var kmCol = km.FitPredict(df, true, true);
+        df["prediction"] = kmCol;
+        df.Head(10);
+        
+        Console.WriteLine($"Model Inertia (Tightness): {km.Inertia:F2}\n");
+        
+        for (int k = 0; k < km.Clusters; k++)
+        {
+            // Filter the original DataFrame to ONLY show rows in this specific cluster
+            var clusterData = df.Filter(i => kmCol[i] == k.ToString());
+    
+            Console.WriteLine($"=== CLUSTER {k} PROFILE ({clusterData.Rows} customers) ===");
+    
+            // Use your Describe() method to see the averages for tip, total_payment, etc!
+            clusterData.Clone().Print();
+        }
     }
 }
