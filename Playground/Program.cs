@@ -408,4 +408,49 @@ public class Program
             clusterData.Clone().Print();
         }
     }
+
+    private static void KNNClassifierExample()
+    {
+        var df = DataFrame.LoadCsv("customers.csv");
+        var y = df.GetColumn<string>("premium_subscription").Clone();
+        df = df.Select("age", "annual_income");
+        
+        foreach (var col in df.Columns.OfType<Column<double>>())
+        {
+            DataScaler.Standardize(col.Data);
+        }
+        
+        var X = df.ToMatrix();
+
+// 6. Initialize and Train the KNN Model (K=3 to prevent ties)
+        var knn = new KNNClassifier(k: 3);
+        knn.Fit(X, y);
+
+        Console.WriteLine("KNN Model successfully memorized 100 historical records.\n");
+
+// --- NOW LET'S TEST IT ON UNSEEN DATA ---
+
+// Create two brand new customers out of thin air
+        var newCustomersDf = new DataFrame();
+        newCustomersDf.AddColumn(new Column<double>("age", new double[] { 23, 55 }));
+        newCustomersDf.AddColumn(new Column<double>("annual_income", new double[] { 32000, 150000 }));
+
+// We MUST standardize the new data using the SAME scale as the training data.
+// Note: In a production library, the Scaler object would save the Mean/StdDev from training 
+// to apply here, but for this test, standardizing the new column works.
+        foreach (var col in newCustomersDf.Columns.OfType<Column<double>>())
+        {
+            DataScaler.Standardize(col.Data);
+        }
+
+// Predict!
+        var newX = newCustomersDf.ToMatrix();
+        var predictions = knn.Predict(newX);
+
+// Slap the predictions onto the DataFrame and print the results
+        newCustomersDf.AddColumn(predictions);
+
+        Console.WriteLine("Predictions for new customers:");
+        Console.WriteLine(newCustomersDf.ToString());
+    }
 }
