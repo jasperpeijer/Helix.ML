@@ -25,7 +25,7 @@ public class KMeans
     /// The Pipeline Bridge: Optionally encodes all non-numeric columns, optionally standardizes 
     /// numeric features, extracts the pure numeric matrix, and routes it to the math engine.
     /// </summary>
-    public Column<string> FitPredict(DataFrame df, bool autoEncode = false, bool standardize = false, int seed = 42, 
+    public Column<string> FitPredict(DataFrame df, bool autoEncode = false, int seed = 42, 
         ScalerType scaler = ScalerType.None)
     {
         var trainingDf = autoEncode ? df.Clone().Encode() : df.Clone();

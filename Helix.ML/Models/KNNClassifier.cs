@@ -1,5 +1,6 @@
 ﻿using Helix.ML.Data;
 using Helix.ML.LinAlg;
+using Helix.ML.Stat;
 
 namespace Helix.ML.Models;
 
@@ -12,6 +13,9 @@ public class KNNClassifier
 
     private Matrix? _xTrain;
     private string[] _yTrain;
+
+    private ScalerType? _scalerType = ScalerType.None;
+    private Dictionary<string, (double Param1, double Param2)> _scalerParams = new();
     
     public KNNClassifier(int k = 3)
     {
@@ -19,6 +23,47 @@ public class KNNClassifier
             throw new ArgumentException("K must be an integer greater than zero.");
         
         K = k;
+    }
+
+    public void Fit(DataFrame df, string targetColumn, ScalerType scaler = ScalerType.None)
+    {
+        _scalerType = scaler;
+        var trainingDf = df.Clone();
+        var yCol = trainingDf.GetColumn<string>(targetColumn);
+
+        trainingDf.Columns.Remove(yCol);
+
+        if (_scalerType == ScalerType.Standardize)
+        {
+            foreach (var col in trainingDf.Columns.OfType<Column<double>>())
+            {
+                var (mean, _, stdDev) = DescriptiveStats.ComputeSummary(col.Data, asSample: false);
+                _scalerParams[col.Name] = (mean, stdDev);
+                
+                Parallel.For(0, col.Data.Length, i =>
+                {
+                    col.Data[i] = stdDev == 0 ? 0 : (col.Data[i] - mean) / stdDev;
+                });
+            }
+        }
+        else if (_scalerType == ScalerType.MinMax)
+        {
+            foreach (var col in trainingDf.Columns.OfType<Column<double>>())
+            {
+                var min = col.Data.Min();
+                var max = col.Data.Max();
+                
+                _scalerParams[col.Name] = (min, max);
+                var range = max - min;
+
+                Parallel.For(0, col.Data.Length, i =>
+                {
+                    col.Data[i] = range == 0 ? 0 : (col.Data[i] - min) / range;
+                });
+            }
+        }
+        
+        Fit(trainingDf.ToMatrix(), yCol);
     }
 
     public void Fit(Matrix x, Column<string> y)
@@ -29,10 +74,48 @@ public class KNNClassifier
         _xTrain = x;
         _yTrain = new string[y.Length];
 
-        Parallel.For(0, y.Length, i =>
+        for (var i = 0; i < y.Length; i++)
         {
             _yTrain[i] = y[i];
-        });
+        }
+    }
+
+    public Column<string> Predict(DataFrame df)
+    {
+        var dfCopy = df.Clone();
+        
+        if (_scalerType == ScalerType.Standardize)
+        {
+            foreach (var col in dfCopy.Columns.OfType<Column<double>>())
+            {
+                if (_scalerParams.TryGetValue(col.Name, out var stats))
+                {
+                    Parallel.For(0, col.Data.Length, i =>
+                    {
+                        var (mean, stdDev) = stats;
+                        col.Data[i] = stdDev == 0 ? 0 : (col.Data[i] - mean) / stdDev;
+                    });
+                }
+            }
+        }
+        else if (_scalerType == ScalerType.MinMax)
+        {
+            foreach (var col in dfCopy.Columns.OfType<Column<double>>())
+            {
+                if (_scalerParams.TryGetValue(col.Name, out var stats))
+                {
+                    var (min, max) = stats;
+                    var range = max - min;
+                    
+                    Parallel.For(0, col.Data.Length, i =>
+                    {
+                        col.Data[i] = range == 0 ? 0 : (col.Data[i] - min) / range;
+                    });
+                }
+            }
+        }
+
+        return Predict(dfCopy.ToMatrix());
     }
 
     public Column<string> Predict(Matrix x)
@@ -60,7 +143,7 @@ public class KNNClassifier
 
                 for (var j = 0; j < cols; j++)
                 {
-                    var diff = x[i, j] - trainX[i, j];
+                    var diff = x[i, j] - trainX[t, j];
                     distSq += diff * diff;
                 }
 

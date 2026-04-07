@@ -383,72 +383,21 @@ public class Program
 
     private static void KMeansExample()
     {
-        var df = DataFrame.LoadCsv("datasets/kmeans_test.csv");
-        Console.WriteLine(df);
-        df.Info().Print(indexWidth: 25);
+        var df = DataFrame.LoadCsv("datasets/knn_test.csv");
+        df.Columns.Remove(df["id"]); 
+        df.Head();
 
-        df = df.Select("total_payment", "tip", "most_expensive_item", "regular_customer", "amount_of_customers");
-        df.Info().Print(indexWidth: 25);
-
-        var km = new KMeans(4);
-        var kmCol = km.FitPredict(df, true, true);
-        df["prediction"] = kmCol;
-        df.Head(10);
-        
-        Console.WriteLine($"Model Inertia (Tightness): {km.Inertia:F2}\n");
-        
-        for (int k = 0; k < km.Clusters; k++)
-        {
-            // Filter the original DataFrame to ONLY show rows in this specific cluster
-            var clusterData = df.Filter(i => kmCol[i] == k.ToString());
-    
-            Console.WriteLine($"=== CLUSTER {k} PROFILE ({clusterData.Rows} customers) ===");
-    
-            // Use your Describe() method to see the averages for tip, total_payment, etc!
-            clusterData.Clone().Print();
-        }
-    }
-
-    private static void KNNClassifierExample()
-    {
-        var df = DataFrame.LoadCsv("customers.csv");
-        var y = df.GetColumn<string>("premium_subscription").Clone();
-        df = df.Select("age", "annual_income");
-        
-        foreach (var col in df.Columns.OfType<Column<double>>())
-        {
-            DataScaler.Standardize(col.Data);
-        }
-        
-        var X = df.ToMatrix();
-
-// 6. Initialize and Train the KNN Model (K=3 to prevent ties)
         var knn = new KNNClassifier(k: 3);
-        knn.Fit(X, y);
+        knn.Fit(df, "premium_subscription", scaler: ScalerType.Standardize);
+        Console.WriteLine("KNN Model successfully memorized and scaled 100 historical records.\n");
 
-        Console.WriteLine("KNN Model successfully memorized 100 historical records.\n");
-
-// --- NOW LET'S TEST IT ON UNSEEN DATA ---
-
-// Create two brand new customers out of thin air
-        var newCustomersDf = new DataFrame();
-        newCustomersDf.AddColumn(new Column<double>("age", new double[] { 23, 55 }));
-        newCustomersDf.AddColumn(new Column<double>("annual_income", new double[] { 32000, 150000 }));
-
-// We MUST standardize the new data using the SAME scale as the training data.
-// Note: In a production library, the Scaler object would save the Mean/StdDev from training 
-// to apply here, but for this test, standardizing the new column works.
-        foreach (var col in newCustomersDf.Columns.OfType<Column<double>>())
-        {
-            DataScaler.Standardize(col.Data);
-        }
-
-// Predict!
-        var newX = newCustomersDf.ToMatrix();
-        var predictions = knn.Predict(newX);
-
-// Slap the predictions onto the DataFrame and print the results
-        newCustomersDf.AddColumn(predictions);
+        var ageCol = new Column<double>("age", [23, 55, 30, 48]);
+        var annualIncomeCol = new Column<double>("annual_income", [32000, 150000, 50000, 120000]);
+        var newCustomersDf = new DataFrame([ageCol, annualIncomeCol]);
+        newCustomersDf.Head();
+        
+        var predictions = knn.Predict(newCustomersDf);
+        newCustomersDf["Predicted_Class"] = predictions;
 
         Console.WriteLine("Predictions for new customers:");
         Console.WriteLine(newCustomersDf.ToString());
