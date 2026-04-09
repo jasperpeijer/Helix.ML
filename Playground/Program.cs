@@ -17,7 +17,8 @@ public class Program
         // await FilteringExample();
         // await VectorMathAndFilteringTest();
         // await NewColumnExample();
-        KMeansExample();
+        // KMeansExample();
+        LogisticRegressionExample();
     }
 
     private static void PCAExample()
@@ -401,5 +402,55 @@ public class Program
 
         Console.WriteLine("Predictions for new customers:");
         Console.WriteLine(newCustomersDf.ToString());
+    }
+
+    private static void LogisticRegressionExample()
+    {
+        // 1. Load the 200-record dataset
+        var df = DataFrame.LoadCsv("datasets/logreg_test.csv");
+
+        // 2. Drop the ID column so it doesn't skew the gradient descent
+        df.Columns.Remove(df["id"]);
+
+        // 3. Initialize Logistic Regression
+        // A learning rate of 0.1 and 2000 iterations gives the math plenty of time 
+        // to slide down the error curve and lock into the perfect weights.
+        var logReg = new LogisticRegression(learningRate: 0.1, maxIterations: 2000);
+
+        Console.WriteLine("Training Logistic Regression model... (Performing 2000 iterations of Gradient Descent)");
+
+        // 4. Train with Standardization
+        // (Mandatory, otherwise Income will overpower Age during training)
+        logReg.Fit(df, targetColumn: "premium_subscription", positiveLabel: "Yes", scalerType: ScalerType.Standardize);
+
+        Console.WriteLine("Training complete. Weights and Bias are locked in.\n");
+
+        // 5. Test on completely unseen data profiles
+
+        // Profile 1: Young, Low Income (Should definitely be No)
+        // Profile 2: Middle-aged, Solid Income (Borderline, leaning Yes)
+        // Profile 3: Senior, High Income (Should definitely be Yes)
+        // Profile 4: Young but High Income (A tricky outlier!)
+        var ageCol = new Column<double>("age", new double[] { 22, 45, 60, 25 });
+        var annualIncomeCol = new Column<double>("annual_income", new double[] { 35000, 110000, 180000, 140000 });
+        var testDf = new DataFrame([ageCol, annualIncomeCol]);
+
+        // 6. Predict probabilities and human-readable classes
+        var predictions = logReg.Predict(testDf, threshold: 0.5);
+        testDf["Predicted_Premium"] = predictions;
+
+        // Let's also attach the raw probabilities so you can see exactly how confident the model is
+        var rawProbabilities = logReg.PredictProbabilities(testDf);
+        testDf["Confidence"] = new Column<double>("Confidence", rawProbabilities);
+
+        Console.WriteLine("Predictions for unseen customers:");
+        Console.WriteLine(testDf.ToString());
+        
+        // Access individual metrics...
+        Console.WriteLine($"Accuracy: {logReg.TrainingMetrics!.Accuracy:P2}");
+        Console.WriteLine($"F1 Score: {logReg.TrainingMetrics!.F1Score:P2}");
+
+        // ...or print the whole report!
+        logReg.TrainingMetrics.PrintReport("Yes");
     }
 }
