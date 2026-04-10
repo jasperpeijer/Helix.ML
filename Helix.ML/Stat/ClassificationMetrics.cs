@@ -42,6 +42,36 @@ public class ClassificationMetrics
 
         return new ClassificationMetrics(tp, tn, fp, fn);
     }
+
+    public static double CalculateAccuracy(Column<string> actual, Column<string> predicted)
+    {
+        if (actual.Length != predicted.Length)
+            throw new ArgumentException("Length mismatch between actual and predicted columns.");
+
+        var correct = 0;
+
+        for (var i = 0; i < actual.Length; i++)
+        {
+            if (actual[i] == predicted[i]) correct++;
+        }
+
+        return (double)correct / actual.Length;
+    }
+
+    public static double CalculateAccuracy(double[] actual, double[] predicted)
+    {
+        if (actual.Length != predicted.Length)
+            throw new ArgumentException("Length mismatch between actual and predicted columns.");
+
+        var correct = 0;
+
+        for (var i = 0; i < actual.Length; i++)
+        {
+            if (actual[i] == predicted[i]) correct++;
+        }
+
+        return (double)correct / actual.Length;
+    }
     
     public void PrintReport(string positiveLabel)
     {

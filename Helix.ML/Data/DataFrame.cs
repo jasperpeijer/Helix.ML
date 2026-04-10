@@ -531,6 +531,7 @@ public class DataFrame
                 var minutes = new double[Rows];
                 var seconds = new double[Rows];
                 var milliseconds = new double[Rows];
+                var absoluteUnixTime = new double[Rows];
 
                 Parallel.For(0, Rows, (int i) =>
                 {
@@ -546,6 +547,7 @@ public class DataFrame
                         seconds[i] = dt.Value.Second;
                         milliseconds[i] = dt.Value.Millisecond;
                         dayOfWeeks[i] = (double)dt.Value.DayOfWeek;
+                        absoluteUnixTime[i] = ((DateTimeOffset)dt).ToUnixTimeSeconds();
                     }
                     else
                     {
@@ -557,6 +559,7 @@ public class DataFrame
                         seconds[i] = double.NaN;
                         milliseconds[i] = double.NaN;
                         dayOfWeeks[i] = double.NaN;
+                        absoluteUnixTime[i] = double.NaN;
                     }
                 });
                 
@@ -568,6 +571,7 @@ public class DataFrame
                 newColumns.Add(new Column<double>($"{col.Name}_Second", seconds));
                 newColumns.Add(new Column<double>($"{col.Name}_Millisecond", milliseconds));
                 newColumns.Add(new Column<double>($"{col.Name}_DayOfWeek", dayOfWeeks));
+                newColumns.Add(new Column<double>($"{col.Name}_AbsoluteUnixTime", absoluteUnixTime));
             }
             else if (col is Column<TimeSpan?> timeCol)
             {
